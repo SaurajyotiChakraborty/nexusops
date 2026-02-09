@@ -1,0 +1,373 @@
+// NexusOps Cloud - Prisma Schema
+// AI-Powered Hosting & Intelligent Infrastructure Platform
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// User Management & Teams
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  userId    String   @unique // Clerk user ID
+  email     String   @unique
+  name      String?
+  imageUrl  String?
+  
+  // OAuth Provider Connections
+  githubConnected    Boolean @default(false)
+  bitbucketConnected Boolean @default(false)
+  googleConnected    Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  teamMembers TeamMember[]
+  projects    Project[]
+  
+  @@index([userId])
+  @@index([email])
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  imageUrl    String?
+  
+  // Billing
+  stripeCustomerId String?
+  stripePriceId    String?
+  stripeCurrentPeriodEnd DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  members  TeamMember[]
+  projects Project[]
+  billingRecords BillingRecord[]
+  
+  @@index([slug])
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model TeamMember {
+  id     String   @id @default(cuid())
+  role   TeamRole @default(MEMBER)
+  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, teamId])
+  @@index([userId])
+  @@index([teamId])
+}
+
+// ============================================
+// Projects & Deployments
+// ============================================
+
+enum Framework {
+  NEXTJS
+  REACT
+  VUE
+  ANGULAR
+  SVELTE
+  NUXT
+  ASTRO
+  GATSBY
+  REMIX
+  EXPRESS
+  NESTJS
+  FASTIFY
+  DJANGO
+  FLASK
+  LARAVEL
+  RAILS
+  SPRINGBOOT
+  STATIC
+  OTHER
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  
+  // Repository
+  repositoryUrl  String?
+  repositoryType String? // github, bitbucket
+  branch         String  @default("main")
+  
+  // Framework Detection
+  framework      Framework?
+  buildCommand   String?
+  startCommand   String?
+  installCommand String?
+  
+  // Environment
+  environmentVariables Json @default("{}")
+  
+  // Owner
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Team (optional)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  deployments Deployment[]
+  
+  @@index([userId])
+  @@index([teamId])
+}
+
+enum DeploymentStatus {
+  PENDING
+  BUILDING
+  DEPLOYING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model Deployment {
+  id        String           @id @default(cuid())
+  status    DeploymentStatus @default(PENDING)
+  
+  // Git Info
+  commitSha     String
+  commitMessage String?
+  branch        String
+  
+  // Build Info
+  buildLogs    String?  @db.Text
+  buildTime    Int?     // seconds
+  dockerImage  String?
+  
+  // Deployment Info
+  url          String?
+  deployedAt   DateTime?
+  
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  services Service[]
+  logs     Log[]
+  
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================
+// Services & Infrastructure
+// ============================================
+
+enum ServiceType {
+  WEB
+  API
+  DATABASE
+  WORKER
+  CACHE
+  QUEUE
+}
+
+enum ServiceStatus {
+  STARTING
+  RUNNING
+  STOPPED
+  FAILED
+  SCALING
+}
+
+model Service {
+  id          String        @id @default(cuid())
+  name        String
+  type        ServiceType
+  status      ServiceStatus @default(STARTING)
+  
+  // Container Info
+  containerId   String?
+  containerName String?
+  port          Int?
+  
+  // Resources
+  cpuLimit    String? // e.g., "1000m" (1 CPU)
+  memoryLimit String? // e.g., "512Mi"
+  replicas    Int     @default(1)
+  
+  // Network
+  url         String?
+  
+  deploymentId String
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  metrics Metric[]
+  logs    Log[]
+  aiRecommendations AIRecommendation[]
+  
+  @@index([deploymentId])
+  @@index([status])
+}
+
+// ============================================
+// Monitoring & Metrics
+// ============================================
+
+model Metric {
+  id        String   @id @default(cuid())
+  
+  // Metric Data
+  cpuUsage      Float? // percentage
+  memoryUsage   Float? // percentage
+  requestCount  Int?
+  responseTime  Float? // milliseconds
+  errorRate     Float? // percentage
+  bandwidth     Float? // bytes
+  
+  timestamp DateTime @default(now())
+  
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  @@index([serviceId, timestamp])
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  level     LogLevel @default(INFO)
+  message   String   @db.Text
+  source    String?  // component/service name
+  metadata  Json?
+  
+  timestamp DateTime @default(now())
+  
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  deploymentId String?
+  deployment   Deployment? @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  
+  @@index([serviceId, timestamp])
+  @@index([deploymentId, timestamp])
+  @@index([level])
+}
+
+// ============================================
+// AI Ops & Recommendations
+// ============================================
+
+enum RecommendationType {
+  SCALING
+  COST_OPTIMIZATION
+  DOWNTIME_PREVENTION
+  SECURITY
+  PERFORMANCE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model AIRecommendation {
+  id          String             @id @default(cuid())
+  type        RecommendationType
+  title       String
+  description String             @db.Text
+  
+  // AI Analysis
+  explanation    String  @db.Text
+  riskLevel      RiskLevel
+  suggestedAction String @db.Text
+  confidenceScore Float   // 0-1
+  
+  // Status
+  implemented Boolean @default(false)
+  dismissed   Boolean @default(false)
+  
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([serviceId])
+  @@index([riskLevel])
+  @@index([implemented])
+}
+
+// ============================================
+// Billing & Cost Management
+// ============================================
+
+model BillingRecord {
+  id     String @id @default(cuid())
+  
+  // Period
+  periodStart DateTime
+  periodEnd   DateTime
+  
+  // Cost
+  amount       Float // in cents
+  currency     String @default("usd")
+  
+  // Usage Breakdown (JSON for flexibility)
+  usageBreakdown Json // { cpu: 100, memory: 200, bandwidth: 50, storage: 30 }
+  
+  // Status
+  paid   Boolean @default(false)
+  paidAt DateTime?
+  
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([teamId, periodStart])
+  @@index([paid])
+}
