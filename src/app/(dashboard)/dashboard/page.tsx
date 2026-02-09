@@ -162,13 +162,13 @@ export default function DashboardPage() {
                     <Card className="border-ai-accent/20 bg-ai-accent/5">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-ai-accent">
-                                AI Insights
+                                Running Containers
                             </CardTitle>
-                            <Sparkles className="w-4 h-4 text-ai-accent" />
+                            <Activity className="w-4 h-4 text-ai-accent" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">0 New</div>
-                            <p className="text-xs text-ai-accent mt-1">Recommendations ready</p>
+                            <div className="text-2xl font-bold">{recentDeployments.filter(d => d.status === 'SUCCESS').length}</div>
+                            <p className="text-xs text-ai-accent mt-1">Active deployments</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -203,54 +203,64 @@ export default function DashboardPage() {
                                     </div>
                                 ))
                             )}
-                            <Button variant="ghost" className="w-full gap-2">
+                            <Button variant="ghost" className="w-full gap-2" onClick={() => window.location.href = '/deployments'}>
                                 View All
                                 <ArrowRight className="w-4 h-4" />
                             </Button>
                         </CardContent>
                     </Card>
 
-                    {/* AI Recommendations */}
+                    {/* System Status */}
                     <Card className="border-ai-accent/20">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-ai-accent" />
-                                AI Recommendations
+                                <Activity className="w-5 h-5 text-ai-accent" />
+                                System Status
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {[
-                                {
-                                    title: 'Scale down database',
-                                    description: 'Save $45/month with optimized resources',
-                                    risk: 'low',
-                                },
-                                {
-                                    title: 'Enable caching',
-                                    description: 'Reduce response time by 40%',
-                                    risk: 'low',
-                                },
-                                {
-                                    title: 'Update dependencies',
-                                    description: '3 security vulnerabilities found',
-                                    risk: 'high',
-                                },
-                            ].map((rec, i) => (
-                                <div key={i} className="flex gap-3">
-                                    <AlertCircle
-                                        className={`w-5 h-5 flex-shrink-0 ${rec.risk === 'high' ? 'text-danger' : 'text-warning'
-                                            }`}
-                                    />
-                                    <div className="flex-1">
-                                        <p className="font-medium">{rec.title}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {rec.description}
-                                        </p>
+                            {stats?.successfulDeployments !== undefined && stats.successfulDeployments > 0 ? (
+                                <>
+                                    <div className="flex gap-3 items-center">
+                                        <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                                        <div className="flex-1">
+                                            <p className="font-medium">All Systems Operational</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {stats?.successfulDeployments || 0} successful deployments
+                                            </p>
+                                        </div>
                                     </div>
+                                    <div className="flex gap-3 items-center">
+                                        <Rocket className="w-5 h-5 text-primary" />
+                                        <div className="flex-1">
+                                            <p className="font-medium">Active Containers</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {recentDeployments.filter(d => d.status === 'SUCCESS').length} running
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {recentDeployments.filter(d => d.status === 'FAILED').length > 0 && (
+                                        <div className="flex gap-3 items-center">
+                                            <AlertCircle className="w-5 h-5 text-danger" />
+                                            <div className="flex-1">
+                                                <p className="font-medium">Failed Deployments</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {recentDeployments.filter(d => d.status === 'FAILED').length} need attention
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center py-4">
+                                    <Sparkles className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                                    <p className="text-sm text-muted-foreground">
+                                        No deployments yet. Deploy your first project to see status updates!
+                                    </p>
                                 </div>
-                            ))}
-                            <Button variant="ai" className="w-full gap-2">
-                                View All Insights
+                            )}
+                            <Button variant="outline" className="w-full gap-2" onClick={() => window.location.href = '/deployments'}>
+                                View All Deployments
                                 <ArrowRight className="w-4 h-4" />
                             </Button>
                         </CardContent>
@@ -266,7 +276,7 @@ export default function DashboardPage() {
                                 Connect your repository and deploy in seconds
                             </p>
                         </div>
-                        <Button variant="accent" size="lg" className="gap-2">
+                        <Button variant="accent" size="lg" className="gap-2" onClick={() => window.location.href = '/deploy'}>
                             <Rocket className="w-5 h-5" />
                             New Deployment
                         </Button>
