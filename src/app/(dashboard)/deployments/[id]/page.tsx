@@ -7,7 +7,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { api, setAuthToken } from '@/lib/api'
+import { useApi } from '@/lib/api'
 import {
     ArrowLeft,
     CheckCircle2,
@@ -50,7 +50,7 @@ const statusConfig = {
 export default function DeploymentDetailPage() {
     const params = useParams()
     const router = useRouter()
-    const { getToken } = useAuth()
+    const api = useApi()
     const [deployment, setDeployment] = useState<Deployment | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -59,12 +59,8 @@ export default function DeploymentDetailPage() {
     useEffect(() => {
         const loadDeployment = async () => {
             try {
-                const token = await getToken()
-                if (token) {
-                    setAuthToken(token)
-                    const data = await api.get<Deployment>(`/deployments/${deploymentId}`)
-                    setDeployment(data)
-                }
+                const data = await api.get<Deployment>(`/deployments/${deploymentId}`)
+                setDeployment(data)
             } catch (error) {
                 console.error('Failed to load deployment:', error)
             } finally {
@@ -82,7 +78,7 @@ export default function DeploymentDetailPage() {
         }, 3000)
 
         return () => clearInterval(interval)
-    }, [deploymentId, getToken, deployment?.status])
+    }, [deploymentId, api, deployment?.status])
 
     if (loading) {
         return (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { api, setAuthToken } from '@/lib/api'
+import { useApi } from '@/lib/api'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
     Card,
@@ -42,19 +42,16 @@ function getStatusVariant(status: string) {
 }
 
 export default function ProjectsPage() {
-    const { getToken, isLoaded, isSignedIn } = useAuth()
+    const { isLoaded, isSignedIn } = useAuth()
+    const api = useApi()
     const [projects, setProjects] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const loadProjects = async () => {
             try {
-                const token = await getToken()
-                if (token) {
-                    setAuthToken(token)
-                    const data = await api.get<any[]>('/projects')
-                    setProjects(data)
-                }
+                const data = await api.get<any[]>('/projects')
+                setProjects(data)
             } catch (error) {
                 console.error('Failed to load projects:', error)
             } finally {
@@ -65,7 +62,7 @@ export default function ProjectsPage() {
         if (isLoaded && isSignedIn) {
             loadProjects()
         }
-    }, [isLoaded, isSignedIn, getToken])
+    }, [isLoaded, isSignedIn, api])
 
     if (!isLoaded || loading) {
         return (

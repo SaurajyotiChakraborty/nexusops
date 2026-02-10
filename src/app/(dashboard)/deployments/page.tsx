@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { api, setAuthToken } from '@/lib/api'
+import { useApi } from '@/lib/api'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
     Card,
@@ -70,18 +70,15 @@ function getStatusIcon(status: string) {
 }
 
 export default function DeploymentsPage() {
-    const { getToken, isLoaded, isSignedIn } = useAuth()
+    const { isLoaded, isSignedIn } = useAuth()
+    const api = useApi()
     const [deployments, setDeployments] = useState<Deployment[]>([])
     const [loading, setLoading] = useState(true)
 
     const loadDeployments = async () => {
         try {
-            const token = await getToken()
-            if (token) {
-                setAuthToken(token)
-                const data = await api.get<Deployment[]>('/deployments/recent?limit=50')
-                setDeployments(data)
-            }
+            const data = await api.get<Deployment[]>('/deployments/recent?limit=50')
+            setDeployments(data)
         } catch (error) {
             console.error('Failed to load deployments:', error)
         } finally {
@@ -96,7 +93,7 @@ export default function DeploymentsPage() {
             const interval = setInterval(loadDeployments, 10000)
             return () => clearInterval(interval)
         }
-    }, [isLoaded, isSignedIn, getToken])
+    }, [isLoaded, isSignedIn, api])
 
     if (!isLoaded || loading) {
         return (

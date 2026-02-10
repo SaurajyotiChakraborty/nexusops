@@ -15,7 +15,7 @@ import {
     ArrowRight,
     Loader2
 } from 'lucide-react'
-import { api, setAuthToken } from '@/lib/api'
+import { useApi } from '@/lib/api'
 
 interface Stats {
     projects: number;
@@ -35,7 +35,8 @@ interface Deployment {
 }
 
 export default function DashboardPage() {
-    const { getToken, isLoaded, isSignedIn } = useAuth()
+    const { isLoaded, isSignedIn } = useAuth()
+    const api = useApi()
     const [stats, setStats] = useState<Stats | null>(null)
     const [recentDeployments, setRecentDeployments] = useState<Deployment[]>([])
     const [loading, setLoading] = useState(true)
@@ -48,16 +49,7 @@ export default function DashboardPage() {
             }
 
             try {
-                const token = await getToken()
-                if (!token) {
-                    console.error('No auth token available')
-                    setLoading(false)
-                    return
-                }
-
-                setAuthToken(token)
-
-                // Fetch real data
+                // useApi automatically fetches fresh token per request
                 const [statsData, deploymentsData] = await Promise.all([
                     api.get<Stats>('/projects/stats'),
                     api.get<Deployment[]>('/deployments/recent?limit=5')
@@ -67,14 +59,17 @@ export default function DashboardPage() {
                 setRecentDeployments(deploymentsData)
             } catch (error: any) {
                 console.error('Failed to load dashboard data:', error)
-                // Set default values on error
-                setStats({
-                    projects: 0,
-                    totalDeployments: 0,
-                    successfulDeployments: 0,
-                    successRate: 0
-                })
-                setRecentDeployments([])
+                // IMPORTANT: Only clear data if it's the VERY FIRST load
+                // If we already have data (from polling), keep it to avoid UI flicker
+                if (!stats || recentDeployments.length === 0) {
+                    setStats({
+                        projects: 0,
+                        totalDeployments: 0,
+                        successfulDeployments: 0,
+                        successRate: 0
+                    })
+                    setRecentDeployments([])
+                }
             } finally {
                 setLoading(false)
             }
@@ -87,7 +82,7 @@ export default function DashboardPage() {
             const interval = setInterval(loadData, 30000)
             return () => clearInterval(interval)
         }
-    }, [isLoaded, isSignedIn, getToken])
+    }, [isLoaded, isSignedIn, api])
 
     if (!isLoaded || loading) {
         return (
@@ -104,14 +99,14 @@ export default function DashboardPage() {
             <div className="space-y-6">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-                    <p className="text-muted-foreground">
+                    <h1 className="text-3xl font-bold mb-2 pl-4">Welcome back!</h1>
+                    <p className="text-muted-foreground pl-4">
                         Here's what's happening with your projects today.
                     </p>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pl-4">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -174,11 +169,11 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-2 gap-6 pl-4">
                     {/* Recent Deployments */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Recent Deployments</CardTitle>
+                            <CardTitle >Recent Deployments</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {recentDeployments.length === 0 ? (
@@ -268,7 +263,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Quick Deploy */}
-                <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+                <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 ml-4">
                     <CardContent className="flex flex-col md:flex-row items-center justify-between gap-4 p-6">
                         <div>
                             <h3 className="text-xl font-bold mb-1">Ready to deploy?</h3>

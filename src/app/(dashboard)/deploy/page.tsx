@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { api, setAuthToken } from '@/lib/api'
+import { useApi } from '@/lib/api'
 import {
     Rocket,
     FolderGit2,
@@ -45,7 +45,7 @@ interface Connection {
 }
 
 export default function DeployPage() {
-    const { getToken } = useAuth()
+    const api = useApi()
     const router = useRouter()
 
     const [step, setStep] = useState<'method' | 'repo' | 'configure' | 'deploy'>('method')
@@ -76,8 +76,6 @@ export default function DeployPage() {
 
     const checkConnections = async () => {
         try {
-            const token = await getToken()
-            if (token) setAuthToken(token)
             const conns = await api.get<Connection[]>('/auth/connections')
             setConnections(conns)
         } catch (error) {
@@ -91,9 +89,6 @@ export default function DeployPage() {
 
     const handleConnect = async (provider: 'github' | 'bitbucket') => {
         try {
-            const token = await getToken()
-            if (token) setAuthToken(token)
-
             const { url, state } = await api.get<{ url: string; state: string }>(`/auth/connect/${provider}`)
 
             // Open OAuth popup
@@ -132,9 +127,6 @@ export default function DeployPage() {
         setRepos([])
         setRepoError(null)
         try {
-            const token = await getToken()
-            if (token) setAuthToken(token)
-
             const res = await api.get<any>(`/projects/${provider}/repos`)
 
             if (res.error) {
@@ -179,9 +171,6 @@ export default function DeployPage() {
     const detectBranch = async (repoUrl: string) => {
         setIsDetectingBranch(true)
         try {
-            const token = await getToken()
-            if (token) setAuthToken(token)
-
             const result = await api.post<{ defaultBranch: string }>('/projects/detect-branch', { repoUrl })
             setBranch(result.defaultBranch)
         } catch (error) {
@@ -215,9 +204,6 @@ export default function DeployPage() {
         setDeployLogs((prev) => [...prev, 'Starting deployment process...'])
 
         try {
-            const token = await getToken()
-            if (token) setAuthToken(token)
-
             setDeployLogs((prev) => [...prev, 'Creating project...'])
 
             const project = await api.post<any>('/projects', {

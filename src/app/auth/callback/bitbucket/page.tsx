@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { api, setAuthToken } from '@/lib/api'
+import { fetchWithToken } from '@/lib/api'
 import { useAuth } from '@clerk/nextjs'
 
 export default function BitbucketCallbackPage() {
@@ -24,9 +24,11 @@ export default function BitbucketCallbackPage() {
 
             try {
                 const token = await getToken()
-                if (token) setAuthToken(token)
+                if (!token) {
+                    throw new Error('Not authenticated')
+                }
 
-                await api.get(`/auth/callback/bitbucket?code=${code}&state=${state}`)
+                await fetchWithToken(`/auth/callback/bitbucket?code=${code}&state=${state}`, token)
 
                 setStatus('success')
                 setMessage('Bitbucket account connected successfully!')

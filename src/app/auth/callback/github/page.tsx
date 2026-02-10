@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { api, setAuthToken } from '@/lib/api'
+import { fetchWithToken } from '@/lib/api'
 import { useAuth } from '@clerk/nextjs'
 
 export default function GitHubCallbackPage() {
@@ -24,9 +24,11 @@ export default function GitHubCallbackPage() {
 
             try {
                 const token = await getToken()
-                if (token) setAuthToken(token)
+                if (!token) {
+                    throw new Error('Not authenticated')
+                }
 
-                await api.get(`/auth/callback/github?code=${code}&state=${state}`)
+                await fetchWithToken(`/auth/callback/github?code=${code}&state=${state}`, token)
 
                 setStatus('success')
                 setMessage('GitHub account connected successfully!')
