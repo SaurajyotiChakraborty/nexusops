@@ -78,7 +78,7 @@ export default function ProjectsPage() {
         <DashboardLayout>
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4">
                     <div>
                         <h1 className="text-3xl font-bold">Projects</h1>
                         <p className="text-muted-foreground">
@@ -94,7 +94,7 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Search & Filter */}
-                <div className="flex gap-4">
+                <div className="flex gap-4 px-4">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -106,7 +106,7 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Projects Grid */}
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 px-4">
                     {projects.map((project) => {
                         const lastDeployment = project.deployments?.[0]
                         return (

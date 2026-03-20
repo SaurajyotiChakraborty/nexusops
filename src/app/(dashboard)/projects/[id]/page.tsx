@@ -23,6 +23,8 @@ import {
     CheckCircle,
     Loader2,
 } from 'lucide-react'
+import { AdvancedModePanel } from '@/components/deploy/AdvancedModePanel'
+import { useModeStore } from '@/stores/useModeStore'
 
 // Mock project data
 const project = {
@@ -80,6 +82,8 @@ function getStatusIcon(status: string) {
 }
 
 export default function ProjectDetailPage() {
+    const { mode } = useModeStore()
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -227,6 +231,9 @@ export default function ProjectDetailPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Advanced Mode Panel */}
+                {mode === 'advanced' && <AdvancedModePanel />}
             </div>
         </DashboardLayout>
     )

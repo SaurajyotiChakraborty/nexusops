@@ -27,6 +27,8 @@ import {
     AlertCircle,
     Loader2
 } from 'lucide-react'
+import { AdvancedModePanel } from '@/components/deploy/AdvancedModePanel'
+import { useModeStore } from '@/stores/useModeStore'
 
 interface Repo {
     id: string | number
@@ -47,6 +49,7 @@ interface Connection {
 export default function DeployPage() {
     const api = useApi()
     const router = useRouter()
+    const { mode } = useModeStore()
 
     const [step, setStep] = useState<'method' | 'repo' | 'configure' | 'deploy'>('method')
     const [method, setMethod] = useState<'manual' | 'github' | 'bitbucket'>('manual')
@@ -419,6 +422,9 @@ export default function DeployPage() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Advanced Mode Panel — shown in configure step before deploy */}
+                        {mode === 'advanced' && <AdvancedModePanel />}
 
                         <div className="flex gap-4">
                             <Button variant="outline" onClick={() => setStep('repo')}>Back</Button>

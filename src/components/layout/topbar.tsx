@@ -6,6 +6,8 @@ import { UserButton } from '@clerk/nextjs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { NotificationPopover } from './notification-popover'
+import { AdvancedBadge } from '@/components/mode/AdvancedBadge'
+import { ModeToggle } from '@/components/mode/ModeToggle'
 
 interface TopbarProps {
     onMenuClick?: () => void
@@ -38,7 +40,12 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 </div>
 
                 {/* Right Actions */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="hidden md:flex items-center">
+                        <ModeToggle />
+                    </div>
+                    <AdvancedBadge />
+                    <div className="w-px h-6 bg-border" />
                     <NotificationPopover />
 
                     <div className="flex items-center gap-3">
