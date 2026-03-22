@@ -24,6 +24,7 @@ import {
     Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { ShareDeploymentMenu } from '@/components/projects/share-deployment'
 
 
 
@@ -161,9 +162,13 @@ export default function ProjectsPage() {
                                                 View Details
                                             </Button>
                                         </Link>
-                                        <Button variant="ghost" size="icon">
-                                            <ExternalLink className="w-4 h-4" />
-                                        </Button>
+                                        {lastDeployment?.url ? (
+                                            <ShareDeploymentMenu url={lastDeployment.url} projectName={project.name} />
+                                        ) : (
+                                            <Button variant="ghost" size="icon" disabled title="No active deployment to share">
+                                                <ExternalLink className="w-4 h-4 opacity-50" />
+                                            </Button>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>

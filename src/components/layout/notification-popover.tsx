@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Bell, CheckCircle2, Info, AlertCircle, X } from 'lucide-react'
+import { Bell, CheckCircle2, Info, AlertCircle, CheckCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useLayout, Notification } from '@/components/layout/layout-context'
 
 export function NotificationPopover() {
-    const { notifications, unreadCount, markAsRead, clearViewed } = useLayout()
+    const { notifications, unreadCount, markAsRead, markAllAsRead, clearViewed } = useLayout()
     const [isOpen, setIsOpen] = useState(false)
     const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -17,13 +17,12 @@ export function NotificationPopover() {
             if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
                 if (isOpen) {
                     setIsOpen(false)
-                    clearViewed() // Periodic cleanup as requested
                 }
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [isOpen, clearViewed])
+    }, [isOpen])
 
     const getIcon = (title: string) => {
         if (title.toLowerCase().includes('success')) return <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -35,20 +34,23 @@ export function NotificationPopover() {
         if (!read) markAsRead(id)
     }
 
+    const handleMarkAllAsRead = () => {
+        markAllAsRead()
+    }
+
     return (
         <div className="relative" ref={popoverRef}>
             <Button
                 variant="ghost"
                 size="icon"
                 className="relative"
-                onClick={() => {
-                    if (isOpen) clearViewed() // Cleanup on close
-                    setIsOpen(!isOpen)
-                }}
+                onClick={() => setIsOpen(!isOpen)}
             >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-danger text-[10px] font-bold text-white rounded-full px-1 animate-pulse">
+                        {unreadCount}
+                    </span>
                 )}
             </Button>
 
@@ -56,7 +58,7 @@ export function NotificationPopover() {
                 <div className="absolute right-0 mt-2 w-80 bg-sidebar border border-sidebar-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
                     <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
                         <h3 className="font-bold">Notifications</h3>
-                        <Badge variant="outline" className="text-[10px]">{unreadCount} New</Badge>
+                        <NotifBadge count={unreadCount} />
                     </div>
 
                     <div className="max-h-[400px] overflow-y-auto">
@@ -71,7 +73,7 @@ export function NotificationPopover() {
                                         key={n.id}
                                         onClick={() => handleNotificationClick(n.id, n.read)}
                                         className={cn(
-                                            "p-4 transition-colors cursor-pointer hover:bg-sidebar-accent relative group",
+                                            "p-4 transition-all duration-300 cursor-pointer hover:bg-sidebar-accent relative group",
                                             !n.read && "bg-primary/5"
                                         )}
                                     >
@@ -81,7 +83,7 @@ export function NotificationPopover() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className={cn(
-                                                    "text-sm font-medium truncate",
+                                                    "text-sm font-medium truncate transition-colors duration-300",
                                                     !n.read ? "text-sidebar-foreground" : "text-muted-foreground"
                                                 )}>
                                                     {n.title}
@@ -94,7 +96,7 @@ export function NotificationPopover() {
                                                 </p>
                                             </div>
                                             {!n.read && (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                                                <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0 transition-opacity duration-300" />
                                             )}
                                         </div>
                                     </div>
@@ -103,33 +105,34 @@ export function NotificationPopover() {
                         )}
                     </div>
 
-                    <div className="p-2 border-t border-sidebar-border">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs text-muted-foreground"
-                            onClick={() => {
-                                setIsOpen(false)
-                                clearViewed()
-                            }}
-                        >
-                            Mark all as read
-                        </Button>
-                    </div>
+                    {unreadCount > 0 && (
+                        <div className="p-2 border-t border-sidebar-border">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full text-xs text-muted-foreground gap-1.5 hover:text-foreground"
+                                onClick={handleMarkAllAsRead}
+                            >
+                                <CheckCheck className="w-3.5 h-3.5" />
+                                Mark all as read
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
     )
 }
 
-function Badge({ children, variant, className }: any) {
+function NotifBadge({ count }: { count: number }) {
     return (
         <span className={cn(
-            "px-1.5 py-0.5 rounded-full text-xs font-medium",
-            variant === 'outline' ? 'border border-sidebar-border' : 'bg-primary text-primary-foreground',
-            className
+            "px-1.5 py-0.5 rounded-full text-xs font-medium border transition-all duration-300",
+            count > 0
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-sidebar-border text-muted-foreground"
         )}>
-            {children}
+            {count > 0 ? `${count} New` : 'All read'}
         </span>
     )
 }

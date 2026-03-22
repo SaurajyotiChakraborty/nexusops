@@ -4,16 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/components/layout/layout-context'
+import { ThemeToggle } from '@/components/layout/theme-toggle'
 import {
     LayoutDashboard,
     FolderGit2,
     Rocket,
     Network,
     Sparkles,
-    BarChart3,
-    CreditCard,
     Settings,
-    ChevronDown,
     Menu,
 } from 'lucide-react'
 
@@ -46,16 +44,7 @@ const navigationItems = [
         icon: Sparkles,
         special: true,
     },
-    {
-        title: 'Analytics',
-        href: '/analytics',
-        icon: BarChart3,
-    },
-    {
-        title: 'Billing',
-        href: '/billing',
-        icon: CreditCard,
-    },
+
     {
         title: 'Settings',
         href: '/settings',
@@ -79,16 +68,20 @@ export function AppSidebar() {
             )}>
                 {!sidebarCollapsed && <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 px-2 animate-in fade-in duration-500">Menu</span>}
 
-                <button
-                    onClick={toggleSidebar}
-                    className={cn(
-                        "p-2 hover:bg-sidebar-accent rounded-lg text-muted-foreground transition-colors shrink-0",
-                        sidebarCollapsed ? "" : ""
-                    )}
-                    title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {!sidebarCollapsed && <ThemeToggle />}
+                    <button
+                        onClick={toggleSidebar}
+                        className={cn(
+                            "p-2 hover:bg-sidebar-accent rounded-lg text-muted-foreground transition-colors shrink-0",
+                            sidebarCollapsed ? "" : ""
+                        )}
+                        title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    {sidebarCollapsed && <div className="hidden group-hover/sidebar:block absolute left-full ml-2"><ThemeToggle /></div>}
+                </div>
             </div>
 
             {/* Navigation */}

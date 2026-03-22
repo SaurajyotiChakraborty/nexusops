@@ -215,19 +215,18 @@ function LogViewer({ logs, status }: { logs: string; status: string }) {
                     displayLines.map((line, i) => (
                         <div
                             key={i}
-                            className={`py-0.5 hover:bg-white/5 px-1 rounded ${
-                                line.includes('❌') ||
-                                line.toLowerCase().includes('error') ||
-                                line.toLowerCase().includes('fail')
+                            className={`py-0.5 hover:bg-white/5 px-1 rounded ${line.includes('❌') ||
+                                    line.toLowerCase().includes('error') ||
+                                    line.toLowerCase().includes('fail')
                                     ? 'text-red-400'
                                     : line.includes('✓') ||
-                                      line.includes('✅') ||
-                                      line.toLowerCase().includes('success')
-                                    ? 'text-emerald-400'
-                                    : line.includes('⚠') || line.toLowerCase().includes('warn')
-                                    ? 'text-amber-400'
-                                    : 'text-gray-400'
-                            }`}
+                                        line.includes('✅') ||
+                                        line.toLowerCase().includes('success')
+                                        ? 'text-emerald-400'
+                                        : line.includes('⚠') || line.toLowerCase().includes('warn')
+                                            ? 'text-amber-400'
+                                            : 'text-gray-400'
+                                }`}
                         >
                             <span className="text-gray-600 mr-3 select-none inline-block w-8 text-right">
                                 {String(i + 1).padStart(3, ' ')}
@@ -281,13 +280,12 @@ function DeploymentCard({
 }) {
     return (
         <div
-            className={`rounded-xl border transition-all duration-300 overflow-hidden ${
-                deployment.status === 'FAILED'
+            className={`rounded-xl border transition-all duration-300 overflow-hidden ${deployment.status === 'FAILED'
                     ? 'border-red-500/20 bg-red-500/5'
                     : isExpanded
-                    ? 'border-primary/30 bg-primary/5'
-                    : 'border-border/50 hover:bg-muted/30'
-            }`}
+                        ? 'border-primary/30 bg-primary/5'
+                        : 'border-border/50 hover:bg-muted/30'
+                }`}
         >
             {/* Header row */}
             <div
@@ -518,11 +516,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const avgBuildTime =
         deployments.filter((d) => d.buildTime).length > 0
             ? Math.round(
-                  deployments
-                      .filter((d) => d.buildTime)
-                      .reduce((sum, d) => sum + (d.buildTime || 0), 0) /
-                      deployments.filter((d) => d.buildTime).length,
-              )
+                deployments
+                    .filter((d) => d.buildTime)
+                    .reduce((sum, d) => sum + (d.buildTime || 0), 0) /
+                deployments.filter((d) => d.buildTime).length,
+            )
             : null
     const isLive = latestDeployment?.status === 'SUCCESS'
 
@@ -654,13 +652,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         </CardHeader>
                         <CardContent>
                             <span
-                                className={`text-2xl font-bold ${
-                                    successRate >= 80
+                                className={`text-2xl font-bold ${successRate >= 80
                                         ? 'text-emerald-400'
                                         : successRate >= 50
-                                        ? 'text-amber-400'
-                                        : 'text-red-400'
-                                }`}
+                                            ? 'text-amber-400'
+                                            : 'text-red-400'
+                                    }`}
                             >
                                 {totalDeployments > 0 ? `${successRate}%` : '—'}
                             </span>
