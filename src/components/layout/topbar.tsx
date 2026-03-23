@@ -1,23 +1,51 @@
 'use client'
 
 import Link from 'next/link'
-import { Bell, Search, Menu } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { NotificationPopover } from './notification-popover'
 import { AdvancedBadge } from '@/components/mode/AdvancedBadge'
 import { ModeToggle } from '@/components/mode/ModeToggle'
+import { useUserProfile } from '@/components/auth/user-profile-context'
+import { useUser } from '@clerk/nextjs'
 
 interface TopbarProps {
     onMenuClick?: () => void
 }
 
+function UserAvatar({ imageUrl, name }: { imageUrl?: string | null; name?: string | null }) {
+    if (imageUrl) {
+        return (
+            <img
+                src={imageUrl}
+                alt={name ?? 'Avatar'}
+                className="w-9 h-9 rounded-full object-cover border border-sidebar-border shadow-sm"
+            />
+        )
+    }
+    const initials = name
+        ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+        : '?'
+    return (
+        <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center text-white text-sm font-bold border border-sidebar-border shadow-sm shrink-0">
+            {initials}
+        </div>
+    )
+}
+
 export function Topbar({ onMenuClick }: TopbarProps) {
+    const { profile } = useUserProfile()
+    const { user: clerkUser } = useUser()
+
+    // Prefer DB profile, fall back to Clerk
+    const displayName = profile?.name ?? clerkUser?.fullName ?? 'User'
+    const displayImage = profile?.imageUrl ?? clerkUser?.imageUrl ?? null
+
     return (
         <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex h-full items-center px-4 lg:px-6 gap-4">
-                {/* Logo Section - Now in Header */}
+                {/* Logo */}
                 <Link href="/" className="flex items-center gap-2 shrink-0 mr-4">
                     <div className="w-9 h-9 rounded-lg gradient-accent flex items-center justify-center shrink-0 shadow-sm">
                         <span className="text-white font-bold text-xl">N</span>
@@ -50,16 +78,22 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
                     <div className="flex items-center gap-3">
                         <div className="hidden sm:block text-right">
-                            <p className="text-xs font-medium text-sidebar-foreground truncate max-w-[100px]">User Name</p>
-                            <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">Free Plan</p>
+                            <p className="text-sm font-medium text-sidebar-foreground truncate max-w-[120px]">
+                                {displayName}
+                            </p>
                         </div>
-                        <UserButton
-                            appearance={{
-                                elements: {
-                                    avatarBox: 'w-9 h-9 border border-sidebar-border shadow-sm',
-                                },
-                            }}
-                        />
+                        {/* Use custom avatar when DB image exists, else Clerk UserButton */}
+                        {displayImage && displayImage !== clerkUser?.imageUrl ? (
+                            <UserAvatar imageUrl={displayImage} name={displayName} />
+                        ) : (
+                            <UserButton
+                                appearance={{
+                                    elements: {
+                                        avatarBox: 'w-9 h-9 border border-sidebar-border shadow-sm',
+                                    },
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>

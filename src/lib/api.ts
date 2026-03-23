@@ -93,6 +93,11 @@ export function useApi() {
                     method: 'PUT',
                     body: JSON.stringify(body),
                 }),
+            patch: <T>(endpoint: string, body: any) =>
+                authFetch<T>(endpoint, {
+                    method: 'PATCH',
+                    body: JSON.stringify(body),
+                }),
             delete: <T>(endpoint: string) =>
                 authFetch<T>(endpoint, { method: 'DELETE' }),
         }),

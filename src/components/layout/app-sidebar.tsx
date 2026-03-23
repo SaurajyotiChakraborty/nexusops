@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/components/layout/layout-context'
 import { ThemeToggle } from '@/components/layout/theme-toggle'
+import { useUserProfile } from '@/components/auth/user-profile-context'
+import { useUser } from '@clerk/nextjs'
 import {
     LayoutDashboard,
     FolderGit2,
@@ -16,8 +18,6 @@ import {
 } from 'lucide-react'
 
 const navigationItems = [
-    // ... (rest of items)
-    // ... (same as before)
     {
         title: 'Dashboard',
         href: '/dashboard',
@@ -44,7 +44,6 @@ const navigationItems = [
         icon: Sparkles,
         special: true,
     },
-
     {
         title: 'Settings',
         href: '/settings',
@@ -52,16 +51,41 @@ const navigationItems = [
     },
 ]
 
+function SidebarAvatar({ imageUrl, name }: { imageUrl?: string | null; name?: string | null }) {
+    const initials = name
+        ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+        : '?'
+    if (imageUrl) {
+        return (
+            <img
+                src={imageUrl}
+                alt={name ?? 'Avatar'}
+                className="w-8 h-8 rounded-full object-cover shrink-0"
+            />
+        )
+    }
+    return (
+        <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {initials}
+        </div>
+    )
+}
+
 export function AppSidebar() {
     const pathname = usePathname()
     const { sidebarCollapsed, toggleSidebar } = useLayout()
+    const { profile } = useUserProfile()
+    const { user: clerkUser } = useUser()
+
+    const displayName = profile?.name ?? clerkUser?.fullName ?? 'User'
+    const displayImage = profile?.imageUrl ?? clerkUser?.imageUrl ?? null
 
     return (
         <aside className={cn(
             "hidden lg:flex flex-col fixed left-0 top-16 bottom-0 border-r border-sidebar-border bg-sidebar transition-all duration-300 z-40",
             sidebarCollapsed ? "w-20" : "w-64"
         )}>
-            {/* Header with Toggle only */}
+            {/* Header with Toggle */}
             <div className={cn(
                 "p-4 border-b border-sidebar-border flex items-center shrink-0 h-16 transition-all duration-300",
                 sidebarCollapsed ? "justify-center" : "justify-between"
@@ -74,20 +98,17 @@ export function AppSidebar() {
                         onClick={toggleSidebar}
                         className={cn(
                             "p-2 hover:bg-sidebar-accent rounded-lg text-muted-foreground transition-colors shrink-0",
-                            sidebarCollapsed ? "" : ""
                         )}
                         title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                     >
                         <Menu className="w-5 h-5" />
                     </button>
-                    {sidebarCollapsed && <div className="hidden group-hover/sidebar:block absolute left-full ml-2"><ThemeToggle /></div>}
                 </div>
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {navigationItems.map((item) => {
-                    // ... (rest of nav code stays same)
                     const isActive = pathname === item.href
                     const Icon = item.icon
 
@@ -100,10 +121,10 @@ export function AppSidebar() {
                                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all group relative',
                                 isActive
                                     ? item.special
-                                        ? 'gradient-ai text-white shadow-md'
+                                        ? 'bg-primary text-white shadow-md'
                                         : 'bg-sidebar-primary text-sidebar-primary-foreground'
                                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                                item.special && !isActive && 'hover:gradient-ai hover:text-white',
+                                item.special && !isActive && 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                                 sidebarCollapsed && "justify-center px-2"
                             )}
                         >
@@ -114,18 +135,18 @@ export function AppSidebar() {
                 })}
             </nav>
 
-            {/* User Section (Hidden when collapsed for cleaner look, or small icon) */}
+            {/* User Section */}
             {!sidebarCollapsed && (
                 <div className="p-4 border-t border-sidebar-border animate-in fade-in duration-500">
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent" />
+                    <Link
+                        href="/settings"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+                    >
+                        <SidebarAvatar imageUrl={displayImage} name={displayName} />
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">User Name</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                                user@email.com
-                            </p>
+                            <p className="text-sm font-medium truncate">{displayName}</p>
                         </div>
-                    </div>
+                    </Link>
                 </div>
             )}
         </aside>

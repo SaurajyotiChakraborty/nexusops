@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { TokenSyncer } from "@/components/auth/token-syncer";
 import { LayoutProvider } from "@/components/layout/layout-context";
 import { ThemeProvider } from "@/components/theme-provider";
+import { UserProfileProvider } from "@/components/auth/user-profile-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +41,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <LayoutProvider>
-              {children}
+              <UserProfileProvider>
+                {children}
+              </UserProfileProvider>
             </LayoutProvider>
           </ThemeProvider>
         </body>

@@ -154,7 +154,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-ai-accent/20 bg-ai-accent/5">
+                    <Card className="border-ai-accent/20 bg-primary/5">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-ai-accent">
                                 Running Containers
