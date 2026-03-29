@@ -2,13 +2,11 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react'
 
-const NOTIFICATIONS_STORAGE_KEY = 'nexusops_notifications'
-
 export interface Notification {
     id: string
     title: string
     description: string
-    time: string
+    createdAt: string
     read: boolean
 }
 
@@ -19,76 +17,47 @@ interface LayoutContextType {
     unreadCount: number
     markAsRead: (id: string) => void
     markAllAsRead: () => void
-    clearViewed: () => void
+    addNotification: (n: Notification) => void
+    refreshNotifications: () => Promise<void>
 }
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined)
 
-const defaultNotifications: Notification[] = [
-    {
-        id: '1',
-        title: 'Deployment Successful',
-        description: 'Your project "nexus-api" has been deployed.',
-        time: '2 mins ago',
-        read: false,
-    },
-    {
-        id: '2',
-        title: 'New Recommendation',
-        description: 'AI detected a potential optimization for your cluster.',
-        time: '1 hour ago',
-        read: false,
-    },
-    {
-        id: '3',
-        title: 'System Update',
-        description: 'NexusOps Platform v1.2.0 is now live.',
-        time: '5 hours ago',
-        read: false,
-    },
-    {
-        id: '4',
-        title: 'Welcome to NexusOps',
-        description: 'Get started by connecting your GitHub account.',
-        time: '1 day ago',
-        read: true,
-    },
-]
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
+const TOKEN_KEY = 'nexusops_auth_token'
 
-function loadNotifications(): Notification[] {
-    if (typeof window === 'undefined') return defaultNotifications
-    try {
-        const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY)
-        if (stored) {
-            const parsed = JSON.parse(stored) as Notification[]
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed
-        }
-    } catch {}
-    return defaultNotifications
+function getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+    if (!token) return { 'Content-Type': 'application/json' }
+    return {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+    }
 }
 
-function saveNotifications(notifications: Notification[]) {
-    if (typeof window === 'undefined') return
-    try {
-        localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications))
-    } catch {}
-}
+import { useApi } from '@/lib/api'
 
 export function LayoutProvider({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-    const [notifications, setNotifications] = useState<Notification[]>(defaultNotifications)
-    const [hydrated, setHydrated] = useState(false)
+    const [notifications, setNotifications] = useState<Notification[]>([])
+    const api = useApi()
 
-    // Hydrate from localStorage on mount
-    useEffect(() => {
-        setNotifications(loadNotifications())
-        setHydrated(true)
-    }, [])
+    // Fetch notifications from backend
+    const refreshNotifications = useCallback(async () => {
+        try {
+            const data = await api.get<Notification[]>('/notifications')
+            setNotifications(data)
+        } catch {
+            // Silently fail — user may not be authenticated yet
+        }
+    }, [api])
 
-    // Persist to localStorage on change
+    // Fetch on mount + poll every 30 seconds
     useEffect(() => {
-        if (hydrated) saveNotifications(notifications)
-    }, [notifications, hydrated])
+        refreshNotifications()
+        const interval = setInterval(refreshNotifications, 30000)
+        return () => clearInterval(interval)
+    }, [refreshNotifications])
 
     const toggleSidebar = useCallback(() => {
         setSidebarCollapsed((prev) => !prev)
@@ -99,24 +68,26 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
         [notifications]
     )
 
-    const markAsRead = useCallback((id: string) => {
+    const markAsRead = useCallback(async (id: string) => {
         setNotifications((prev) =>
             prev.map((n) => (n.id === id ? { ...n, read: true } : n))
         )
-    }, [])
+        try {
+            await api.patch(`/notifications/${id}/read`, {})
+        } catch {}
+    }, [api])
 
-    const markAllAsRead = useCallback(() => {
+    const markAllAsRead = useCallback(async () => {
         setNotifications((prev) =>
             prev.map((n) => ({ ...n, read: true }))
         )
-    }, [])
+        try {
+            await api.patch('/notifications/read-all', {})
+        } catch {}
+    }, [api])
 
-    const clearViewed = useCallback(() => {
-        setNotifications((prev) => {
-            const unread = prev.filter((n) => !n.read)
-            const read = prev.filter((n) => n.read).slice(0, 3)
-            return [...unread, ...read].slice(0, 3)
-        })
+    const addNotification = useCallback((n: Notification) => {
+        setNotifications((prev) => [n, ...prev])
     }, [])
 
     return (
@@ -128,7 +99,8 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
                 unreadCount,
                 markAsRead,
                 markAllAsRead,
-                clearViewed,
+                addNotification,
+                refreshNotifications,
             }}
         >
             {children}

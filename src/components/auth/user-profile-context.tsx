@@ -10,6 +10,8 @@ export interface UserProfile {
     email: string
     imageUrl: string | null
     clerkId: string
+    notifyDeployments: boolean
+    notifyAIOps: boolean
 }
 
 interface UserProfileContextType {

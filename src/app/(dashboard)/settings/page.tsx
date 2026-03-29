@@ -32,6 +32,8 @@ interface UserProfile {
     email: string
     imageUrl: string | null
     clerkId: string
+    notifyDeployments: boolean
+    notifyAIOps: boolean
 }
 
 interface Connection {
@@ -49,12 +51,9 @@ interface Toast {
 
 const NOTIF_KEY = 'nexusops_notif_prefs'
 
+// We will no longer rely on localStorage, but we keep this function signature
+// to avoid breaking until the component fetches from context.
 function loadNotifPrefs() {
-    if (typeof window === 'undefined') return { deployments: true, aiops: true }
-    try {
-        const stored = localStorage.getItem(NOTIF_KEY)
-        if (stored) return JSON.parse(stored)
-    } catch { }
     return { deployments: true, aiops: true }
 }
 
@@ -216,6 +215,10 @@ export default function SettingsPage() {
         if (contextProfile) {
             setProfile(contextProfile)
             setNameInput(contextProfile.name ?? '')
+            setNotifPrefs({
+                deployments: contextProfile.notifyDeployments ?? true,
+                aiops: contextProfile.notifyAIOps ?? true,
+            })
             setProfileLoading(false)
         }
     }, [contextProfile])
@@ -227,6 +230,10 @@ export default function SettingsPage() {
                 .then((data) => {
                     setProfile(data)
                     setNameInput(data.name ?? '')
+                    setNotifPrefs({
+                        deployments: data.notifyDeployments ?? true,
+                        aiops: data.notifyAIOps ?? true,
+                    })
                 })
                 .catch(() => {})
                 .finally(() => setProfileLoading(false))
@@ -288,10 +295,24 @@ export default function SettingsPage() {
         }
     }
 
-    const toggleNotif = (key: 'deployments' | 'aiops') => {
+    const toggleNotif = async (key: 'deployments' | 'aiops') => {
         const updated = { ...notifPrefs, [key]: !notifPrefs[key] }
+        // Optimistic update
         setNotifPrefs(updated)
-        localStorage.setItem(NOTIF_KEY, JSON.stringify(updated))
+        
+        try {
+            const payload = {
+                notifyDeployments: updated.deployments,
+                notifyAIOps: updated.aiops,
+            }
+            const data = await api.patch<UserProfile>('/auth/me', payload)
+            updateContextProfile(payload)
+            showToast('Notification preferences updated', 'success')
+        } catch (e: any) {
+            // Revert on failure
+            setNotifPrefs(notifPrefs)
+            showToast(e.message ?? 'Failed to update preferences', 'error')
+        }
     }
 
     const handleDeleteAccount = async () => {

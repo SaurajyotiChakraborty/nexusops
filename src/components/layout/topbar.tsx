@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Search } from 'lucide-react'
-import { UserButton } from '@clerk/nextjs'
+import { Search, LogOut } from 'lucide-react'
+import { UserButton, useClerk } from '@clerk/nextjs'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { NotificationPopover } from './notification-popover'
 import { AdvancedBadge } from '@/components/mode/AdvancedBadge'
 import { ModeToggle } from '@/components/mode/ModeToggle'
@@ -37,10 +38,17 @@ function UserAvatar({ imageUrl, name }: { imageUrl?: string | null; name?: strin
 export function Topbar({ onMenuClick }: TopbarProps) {
     const { profile } = useUserProfile()
     const { user: clerkUser } = useUser()
+    const { signOut } = useClerk()
 
     // Prefer DB profile, fall back to Clerk
     const displayName = profile?.name ?? clerkUser?.fullName ?? 'User'
     const displayImage = profile?.imageUrl ?? clerkUser?.imageUrl ?? null
+
+    const handleLogout = async () => {
+        localStorage.removeItem('nexusops_auth_token')
+        localStorage.removeItem('nexusops_notifications')
+        await signOut({ redirectUrl: '/' })
+    }
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -95,6 +103,17 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                             />
                         )}
                     </div>
+
+                    {/* Logout Button */}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleLogout}
+                        title="Sign Out"
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
         </header>

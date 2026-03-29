@@ -6,8 +6,21 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useLayout, Notification } from '@/components/layout/layout-context'
 
+function timeAgo(dateStr: string): string {
+    const now = Date.now()
+    const created = new Date(dateStr).getTime()
+    const diffMs = now - created
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins} min${mins > 1 ? 's' : ''} ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`
+    const days = Math.floor(hrs / 24)
+    return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
 export function NotificationPopover() {
-    const { notifications, unreadCount, markAsRead, markAllAsRead, clearViewed } = useLayout()
+    const { notifications, unreadCount, markAsRead, markAllAsRead } = useLayout()
     const [isOpen, setIsOpen] = useState(false)
     const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -64,7 +77,7 @@ export function NotificationPopover() {
                     <div className="max-h-[400px] overflow-y-auto">
                         {notifications.length === 0 ? (
                             <div className="p-8 text-center text-muted-foreground text-sm">
-                                No new notifications
+                                No notifications yet
                             </div>
                         ) : (
                             <div className="divide-y divide-sidebar-border/50">
@@ -92,7 +105,7 @@ export function NotificationPopover() {
                                                     {n.description}
                                                 </p>
                                                 <p className="text-[10px] text-muted-foreground/60 mt-1 uppercase tracking-tighter">
-                                                    {n.time}
+                                                    {timeAgo(n.createdAt)}
                                                 </p>
                                             </div>
                                             {!n.read && (

@@ -20,7 +20,10 @@ import {
     Settings,
     Clock,
     Bot,
-    Loader2
+    Loader2,
+    Activity,
+    DollarSign,
+    Zap
 } from 'lucide-react'
 
 // Types based on the backend interfaces
@@ -52,21 +55,43 @@ interface SecurityScanResult {
     error?: string;
 }
 
+interface AIRecommendation {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    explanation: string;
+    riskLevel: string;
+    suggestedAction: string;
+    confidenceScore: number;
+    service?: {
+        name: string;
+        deployment?: {
+            project?: {
+                name: string;
+            }
+        }
+    }
+}
+
 export default function AIOpsPage() {
     const api = useApi()
     const [scans, setScans] = useState<SecurityScanResult[]>([])
+    const [recommendations, setRecommendations] = useState<AIRecommendation[]>([])
     const [loading, setLoading] = useState(true)
     const [scanning, setScanning] = useState(false)
 
-    const fetchScans = async () => {
+    const fetchData = async () => {
         setLoading(true)
         try {
-            const data = await api.get<SecurityScanResult[]>('/ai-ops/security/scan')
-            if (Array.isArray(data)) {
-                setScans(data)
-            }
+            const [scanData, recsData] = await Promise.all([
+                api.get<SecurityScanResult[]>('/ai-ops/security/scan').catch(() => []),
+                api.get<AIRecommendation[]>('/ai-ops/recommendations').catch(() => [])
+            ])
+            if (Array.isArray(scanData)) setScans(scanData)
+            if (Array.isArray(recsData)) setRecommendations(recsData)
         } catch (error) {
-            console.error('Failed to fetch security scans:', error)
+            console.error('Failed to fetch AI Ops data:', error)
         } finally {
             setLoading(false)
         }
@@ -75,8 +100,6 @@ export default function AIOpsPage() {
     const runFullScan = async () => {
         setScanning(true)
         try {
-            // Trigger a fresh scan by ignoring cache or using a specific trigger endpoint if one existed
-            // For now, calling the standard GET endpoint which inherently scans live containers
             const data = await api.get<SecurityScanResult[]>('/ai-ops/security/scan')
             if (Array.isArray(data)) {
                 setScans(data)
@@ -89,16 +112,25 @@ export default function AIOpsPage() {
     }
 
     useEffect(() => {
-        fetchScans()
+        fetchData()
     }, [api])
 
     const getRiskConfig = (risk: string) => {
-        switch (risk) {
+        switch (risk?.toLowerCase()) {
             case 'critical': return { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30', icon: ShieldAlert, label: 'Critical Risk' }
             case 'high': return { color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/30', icon: AlertTriangle, label: 'High Risk' }
             case 'medium': return { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', icon: Info, label: 'Medium Risk' }
             case 'low': return { color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30', icon: Shield, label: 'Low Risk' }
             default: return { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', icon: CheckCircle2, label: 'Secure' }
+        }
+    }
+
+    const getRecTypeIcon = (type: string) => {
+        switch(type) {
+            case 'COST_OPTIMIZATION': return <DollarSign className="w-4 h-4 text-emerald-400" />
+            case 'PERFORMANCE': return <Zap className="w-4 h-4 text-amber-400" />
+            case 'SCALING': return <Activity className="w-4 h-4 text-blue-400" />
+            default: return <Sparkles className="w-4 h-4 text-primary" />
         }
     }
 
@@ -113,7 +145,6 @@ export default function AIOpsPage() {
     }
 
     // Aggregate stats
-    const totalProjects = scans.length
     const totalFindings = scans.reduce((acc, scan) => acc + (scan.totalFindings || 0), 0)
     const totalCritical = scans.reduce((acc, scan) => acc + (scan.criticalCount || 0), 0)
     const overallRiskLevel = totalCritical > 0 ? 'critical' : scans.some(s => s.overallRisk === 'high') ? 'high' : 'low'
@@ -136,7 +167,6 @@ export default function AIOpsPage() {
                         </p>
                     </div>
                 </div>
-
 
                 <div className="space-y-6 mt-4 animate-in fade-in duration-500">
                     {/* Security Overview */}
@@ -164,8 +194,8 @@ export default function AIOpsPage() {
 
                         <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
                             <CardContent className="p-6 flex flex-col justify-center h-full">
-                                <p className="text-sm font-medium text-muted-foreground mb-1">Critical Risks</p>
-                                <h2 className="text-3xl font-bold text-red-400">{totalCritical}</h2>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">AI Insights Available</p>
+                                <h2 className="text-3xl font-bold text-ai-accent">{recommendations.length}</h2>
                             </CardContent>
                         </Card>
 
@@ -179,7 +209,7 @@ export default function AIOpsPage() {
                                         className="w-full gap-2 bg-primary hover:bg-primary/90 text-white"
                                     >
                                         {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                        {scanning ? 'Scanning Fleet...' : 'Run Full Scan'}
+                                        {scanning ? 'Scanning...' : 'Run Scan'}
                                     </Button>
                                 </div>
                                 <Shield className="absolute -bottom-4 -right-4 w-24 h-24 text-ai-accent/10 -rotate-12" />
@@ -187,136 +217,185 @@ export default function AIOpsPage() {
                         </Card>
                     </div>
 
-                    {/* Project Scans */}
-                    {loading && !scanning ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                            <Loader2 className="w-8 h-8 animate-spin mb-4 text-ai-accent" />
-                            <p>Running deep container inspection...</p>
+                    {/* AI Recommendations Section */}
+                    {recommendations.length > 0 && (
+                        <div className="space-y-4 pt-6 border-t border-border/50">
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-xl font-bold">Active Recommendations</h3>
+                                <Badge variant="outline" className="text-ai-accent border-ai-accent/30 bg-ai-accent/10">
+                                    {recommendations.length} new
+                                </Badge>
+                            </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                {recommendations.map(rec => {
+                                    const conf = getRiskConfig(rec.riskLevel);
+                                    return (
+                                        <Card key={rec.id} className="border-ai-accent/30 overflow-hidden relative">
+                                            <div className="absolute top-0 right-0 p-4">
+                                                <Badge variant="outline" className="bg-card">
+                                                    Score: {Math.round(rec.confidenceScore * 100)}%
+                                                </Badge>
+                                            </div>
+                                            <CardHeader className="pb-2 pt-5">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {getRecTypeIcon(rec.type)}
+                                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{rec.type.replace('_', ' ')}</span>
+                                                </div>
+                                                <CardTitle className="text-lg">{rec.title}</CardTitle>
+                                                <CardDescription className="text-sm">
+                                                    {rec.service?.deployment?.project?.name} - {rec.service?.name}
+                                                </CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="space-y-4">
+                                                <p className="text-sm text-foreground/80">{rec.description}</p>
+                                                <div className="bg-muted/30 p-3 rounded-md border text-xs text-muted-foreground">
+                                                    <strong>AI Analysis:</strong> {rec.explanation}
+                                                </div>
+                                                <div className="border-l-2 border-ai-accent pl-3 py-1">
+                                                    <span className="text-xs font-semibold text-ai-accent block mb-1">Suggested Action</span>
+                                                    <p className="text-sm">{rec.suggestedAction}</p>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )
+                                })}
+                            </div>
                         </div>
-                    ) : scans.length === 0 ? (
-                        <Card className="border-dashed">
-                            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                                <Shield className="w-12 h-12 text-muted-foreground/30 mb-4" />
-                                <h3 className="text-lg font-semibold mb-1">No Deployments Found</h3>
-                                <p className="text-muted-foreground text-sm max-w-sm">
-                                    Deploy a project first to enable proactive security scanning and vulnerability detection.
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="space-y-8">
-                            {scans.map((scan) => (
-                                <div key={scan.projectId} className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-bold">{scan.projectName || 'Unknown Project'}</h3>
-                                        {scan.error ? (
-                                            <Badge variant="outline" className="text-red-400 border-red-500/30">Scan Failed</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-muted-foreground">
-                                                {scan.totalFindings} findings
-                                            </Badge>
-                                        )}
-                                    </div>
+                    )}
 
-                                    {scan.error ? (
-                                        <Card className="bg-red-500/5 border-red-500/20">
-                                            <CardContent className="p-4 text-sm text-red-400 flex items-center gap-2">
-                                                <AlertTriangle className="w-4 h-4" />
-                                                {scan.error}
-                                            </CardContent>
-                                        </Card>
-                                    ) : scan.totalFindings === 0 ? (
-                                        <Card className="bg-emerald-500/5 border-emerald-500/20">
-                                            <CardContent className="p-6 flex items-center gap-4 text-emerald-400">
-                                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-                                                    <CheckCircle2 className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-semibold">Clean Bill of Health</h4>
-                                                    <p className="text-sm opacity-80">No misconfigurations or vulnerabilities detected in this project's containers.</p>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ) : (
-                                        <>
-                                            {/* AI Summary Banner */}
-                                            {scan.aiSummary && (
-                                                <Card className="bg-primary/5 border-ai-accent/20 border-l-4 border-l-ai-accent">
-                                                    <CardContent className="p-4 flex gap-4">
-                                                        <Bot className="w-6 h-6 text-ai-accent shrink-0 mt-0.5" />
-                                                        <div>
-                                                            <h4 className="text-sm font-semibold text-foreground mb-1">AI Security Briefing</h4>
-                                                            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                                                                {scan.aiSummary}
-                                                            </p>
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
+                    {/* Project Scans */}
+                    <div className="pt-6 border-t border-border/50 space-y-4">
+                        <h3 className="text-xl font-bold">Security Scans</h3>
+                        {loading && !scanning ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                                <Loader2 className="w-8 h-8 animate-spin mb-4 text-ai-accent" />
+                                <p>Loading data...</p>
+                            </div>
+                        ) : scans.length === 0 ? (
+                            <Card className="border-dashed">
+                                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                                    <Shield className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                                    <h3 className="text-lg font-semibold mb-1">No Deployments Found</h3>
+                                    <p className="text-muted-foreground text-sm max-w-sm">
+                                        Deploy a project first to enable proactive security scanning and vulnerability detection.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <div className="space-y-8">
+                                {scans.map((scan) => (
+                                    <div key={scan.projectId} className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-lg font-bold">{scan.projectName || 'Unknown Project'}</h3>
+                                            {scan.error ? (
+                                                <Badge variant="outline" className="text-red-400 border-red-500/30">Scan Failed</Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-muted-foreground">
+                                                    {scan.totalFindings} findings
+                                                </Badge>
                                             )}
+                                        </div>
 
-                                            {/* Findings List */}
-                                            <div className="grid gap-4">
-                                                {scan.findings?.map((finding) => {
-                                                    const conf = getRiskConfig(finding.riskLevel)
-                                                    const Icon = conf.icon
-                                                    return (
-                                                        <Card key={finding.id} className={`border-l-4 border-l-${conf.color.split('-')[1]}-500 overflow-hidden`}>
-                                                            <div className="p-5 flex flex-col md:flex-row gap-5">
-                                                                <div className="flex-1 min-w-0 space-y-3">
-                                                                    <div className="flex items-start justify-between gap-4">
-                                                                        <div className="space-y-1">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <h4 className="font-semibold text-base">{finding.title}</h4>
-                                                                                <Badge variant="outline" className={`${conf.bg} ${conf.color} border gap-1 uppercase tracking-wider text-[10px]`}>
-                                                                                    <Icon className="w-3 h-3" />
-                                                                                    {finding.riskLevel}
-                                                                                </Badge>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                                                <span className="flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded-md">
-                                                                                    <Server className="w-3 h-3" /> {finding.affectedService}
-                                                                                </span>
-                                                                                <span className="flex items-center gap-1.5 capitalize">
-                                                                                    {getCategoryIcon(finding.category)} {finding.category}
-                                                                                </span>
+                                        {scan.error ? (
+                                            <Card className="bg-red-500/5 border-red-500/20">
+                                                <CardContent className="p-4 text-sm text-red-400 flex items-center gap-2">
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    {scan.error}
+                                                </CardContent>
+                                            </Card>
+                                        ) : scan.totalFindings === 0 ? (
+                                            <Card className="bg-emerald-500/5 border-emerald-500/20">
+                                                <CardContent className="p-6 flex items-center gap-4 text-emerald-400">
+                                                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                                        <CheckCircle2 className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-semibold">Clean Bill of Health</h4>
+                                                        <p className="text-sm opacity-80">No misconfigurations or vulnerabilities detected in this project's containers.</p>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ) : (
+                                            <>
+                                                {/* AI Summary Banner */}
+                                                {scan.aiSummary && (
+                                                    <Card className="bg-primary/5 border-ai-accent/20 border-l-4 border-l-ai-accent">
+                                                        <CardContent className="p-4 flex gap-4">
+                                                            <Bot className="w-6 h-6 text-ai-accent shrink-0 mt-0.5" />
+                                                            <div>
+                                                                <h4 className="text-sm font-semibold text-foreground mb-1">AI Security Briefing</h4>
+                                                                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                                                    {scan.aiSummary}
+                                                                </p>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                )}
+
+                                                {/* Findings List */}
+                                                <div className="grid gap-4">
+                                                    {scan.findings?.map((finding) => {
+                                                        const conf = getRiskConfig(finding.riskLevel)
+                                                        const Icon = conf.icon
+                                                        return (
+                                                            <Card key={finding.id} className={`border-l-4 border-l-${conf.color.split('-')[1]}-500 overflow-hidden`}>
+                                                                <div className="p-5 flex flex-col md:flex-row gap-5">
+                                                                    <div className="flex-1 min-w-0 space-y-3">
+                                                                        <div className="flex items-start justify-between gap-4">
+                                                                            <div className="space-y-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <h4 className="font-semibold text-base">{finding.title}</h4>
+                                                                                    <Badge variant="outline" className={`${conf.bg} ${conf.color} border gap-1 uppercase tracking-wider text-[10px]`}>
+                                                                                        <Icon className="w-3 h-3" />
+                                                                                        {finding.riskLevel}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                                                    <span className="flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded-md">
+                                                                                        <Server className="w-3 h-3" /> {finding.affectedService}
+                                                                                    </span>
+                                                                                    <span className="flex items-center gap-1.5 capitalize">
+                                                                                        {getCategoryIcon(finding.category)} {finding.category}
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
-                                                                    </div>
 
-                                                                    <div className="space-y-4">
-                                                                        <div>
-                                                                            <p className="text-sm text-muted-foreground leading-relaxed">
-                                                                                {finding.description}
-                                                                            </p>
-                                                                        </div>
-
-                                                                        <div className="grid md:grid-cols-2 gap-4 pt-3 border-t border-border/40">
+                                                                        <div className="space-y-4">
                                                                             <div>
-                                                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Potential Impact</span>
-                                                                                <p className="text-xs text-foreground/80 leading-relaxed border-l-2 border-red-500/30 pl-2">
-                                                                                    {finding.impact}
+                                                                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                                                                    {finding.description}
                                                                                 </p>
                                                                             </div>
-                                                                            <div>
-                                                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-ai-accent mb-1.5 block">AI Suggested Fix</span>
-                                                                                <p className="text-xs text-foreground/80 leading-relaxed border-l-2 border-ai-accent/30 pl-2">
-                                                                                    {finding.suggestion}
-                                                                                </p>
+
+                                                                            <div className="grid md:grid-cols-2 gap-4 pt-3 border-t border-border/40">
+                                                                                <div>
+                                                                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Potential Impact</span>
+                                                                                    <p className="text-xs text-foreground/80 leading-relaxed border-l-2 border-red-500/30 pl-2">
+                                                                                        {finding.impact}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ai-accent mb-1.5 block">AI Suggested Fix</span>
+                                                                                    <p className="text-xs text-foreground/80 leading-relaxed border-l-2 border-ai-accent/30 pl-2">
+                                                                                        {finding.suggestion}
+                                                                                    </p>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        </Card>
-                                                    )
-                                                })}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                                            </Card>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </DashboardLayout>

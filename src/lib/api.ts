@@ -9,8 +9,8 @@ const TOKEN_KEY = 'nexusops_auth_token'
 
 /**
  * React hook that provides API methods with automatic token management.
- * Prioritizes nexusops_auth_token from localStorage, with a fallback
- * to fetching a fresh token from Clerk if missing.
+ * Always fetches a fresh token from Clerk first (fast, internally cached),
+ * falling back to localStorage only if Clerk isn't ready.
  */
 export function useApi() {
     const { getToken } = useAuth()
@@ -23,16 +23,28 @@ export function useApi() {
                 ...(options.headers as Record<string, string>),
             })
 
-            // First, try to get from localStorage
-            let token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+            // Strategy: Always try Clerk first (returns a fresh or cached-but-valid token),
+            // then fall back to localStorage if Clerk SDK isn't ready yet.
+            let token: string | null = null
 
-            // Fallback: If no token in storage, always get a fresh one to be safe
-            if (!token) {
+            try {
                 token = await getToken()
+            } catch {
+                // Clerk SDK not ready yet, ignore
+            }
+
+            // Fallback to localStorage if Clerk returned nothing
+            if (!token) {
+                token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
             }
 
             if (!token) {
                 throw new Error('Not authenticated')
+            }
+
+            // Keep localStorage in sync with the latest valid token
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(TOKEN_KEY, token)
             }
 
             let response = await fetch(`${API_URL}${endpoint}`, {
@@ -40,21 +52,18 @@ export function useApi() {
                 headers: getHeaders(token),
             })
 
-            // If 401 Unauthorized, the token in localStorage might be stale.
-            // Retry once with a fresh token from Clerk, forcing skipCache.
+            // If 401 Unauthorized, force a completely fresh token from Clerk (skip internal cache).
             if (response.status === 401) {
-                // console.log('Unauthorized (401), retrying with fresh token (skipCache: true)...')
                 try {
-                    // @ts-ignore - skipCache is available in some versions/templates, 
-                    // or we use it to ensure any SDK-side caching is bypassed if possible.
-                    const newToken = await getToken({ skipCache: true })
-                    if (newToken) {
+                    // @ts-ignore - skipCache ensures we bypass any SDK-side caching
+                    const freshToken = await getToken({ skipCache: true })
+                    if (freshToken) {
                         if (typeof window !== 'undefined') {
-                            localStorage.setItem(TOKEN_KEY, newToken)
+                            localStorage.setItem(TOKEN_KEY, freshToken)
                         }
                         response = await fetch(`${API_URL}${endpoint}`, {
                             ...options,
-                            headers: getHeaders(newToken),
+                            headers: getHeaders(freshToken),
                         })
                     }
                 } catch (retryError) {
