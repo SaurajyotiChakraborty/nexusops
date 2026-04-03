@@ -3,26 +3,14 @@
 import Link from 'next/link'
 import { useRef, useEffect, useCallback, useState } from 'react'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Mote {
-    x: number
-    y: number
-    vx: number
-    vy: number
-    r: number
-    alpha: number
-    phase: number
-}
-
-// ─── Embossed Sculpture Canvas ────────────────────────────────────────────────
+// ─── Hero Reveal Canvas ───────────────────────────────────────────────────────
 
 function SculptureCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const mouseRef = useRef({ x: 0.42, y: 0.38 })
-    const smoothRef = useRef({ x: 0.42, y: 0.38 })
+    const mouseRef = useRef({ x: -1, y: -1 })   // -1 = off-screen / not yet moved
+    const smoothRef = useRef({ x: -1, y: -1 })
     const imgRef = useRef<HTMLImageElement | null>(null)
-    const motesRef = useRef<Mote[]>([])
+    const isMobileRef = useRef(false)
 
     const onMouseMove = useCallback((e: MouseEvent) => {
         mouseRef.current = {
@@ -41,38 +29,58 @@ function SculptureCanvas() {
     }, [])
 
     useEffect(() => {
+        isMobileRef.current = /Mobi|Android/i.test(navigator.userAgent)
+        const isMobile = isMobileRef.current
+
         const canvas = canvasRef.current
         if (!canvas) return
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
+
+        // ── Three-canvas architecture ────────────────────────────────────────
+        // imgCanvas    → hero image (base layer)
+        // overlayCanvas → white sheet with holes (destination-out masking)
+        // main canvas  → composites both, then draws water-ripple rings on top
+        const imgCanvas = document.createElement('canvas')
+        const imgCtx = imgCanvas.getContext('2d')!
+        const overlayCanvas = document.createElement('canvas')
+        const overlayCtx = overlayCanvas.getContext('2d')!
+        const ctx = canvas.getContext('2d')!
 
         const dpr = Math.min(window.devicePixelRatio || 1, 2)
         let w = 0, h = 0, animId = 0
+        const startTime = performance.now()
+        let lastFrameTime = startTime
 
-        // ── motes ─────────────────────────────────────────────────────────────
-        const spawnMotes = (W: number, H: number) => {
-            motesRef.current = Array.from({ length: 28 }, () => ({
-                x: Math.random() * W,
-                y: Math.random() * H,
-                vx: (Math.random() - 0.5) * 0.18,
-                vy: -0.05 - Math.random() * 0.12,
-                r: 0.8 + Math.random() * 1.2,
-                alpha: 0.06 + Math.random() * 0.14,
-                phase: Math.random() * Math.PI * 2,
-            }))
+        // ── Swirl spot type ───────────────────────────────────────────────────
+        // Each spot orbits an ellipse around a pivot point and auto-changes
+        // direction after a random interval, creating the swirl effect.
+        interface SwirlSpot {
+            pivotX: number    // orbit centre (normalised 0–1)
+            pivotY: number
+            angle: number     // current orbit angle (radians)
+            orbitRX: number   // ellipse half-width (px)
+            orbitRY: number   // ellipse half-height (px)
+            tiltAngle: number // rotate the whole ellipse for variety
+            angV: number      // angular velocity (rad / ms) — sign = direction
+            revealR: number   // reveal gradient radius (px)
+            alpha: number     // peak erase alpha
+            birth: number
+            life: number
+            nextTurn: number  // timestamp when direction/speed changes
         }
+
+        const spots: SwirlSpot[] = []
 
         const resize = () => {
             w = window.innerWidth
             h = window.innerHeight
-            canvas.width = w * dpr
-            canvas.height = h * dpr
-            canvas.style.width = `${w}px`
-            canvas.style.height = `${h}px`
-            spawnMotes(w, h)
+            for (const c of [canvas, imgCanvas, overlayCanvas]) {
+                c.width  = w * dpr
+                c.height = h * dpr
+                c.style.width  = `${w}px`
+                c.style.height = `${h}px`
+            }
         }
 
-        // ── load sculpture image ───────────────────────────────────────────────
         const img = new Image()
         img.src = '/hero-bg.png'
         imgRef.current = img
@@ -82,114 +90,196 @@ function SculptureCanvas() {
         window.addEventListener('mousemove', onMouseMove)
         window.addEventListener('touchmove', onTouchMove, { passive: true })
 
-        // ── draw loop ──────────────────────────────────────────────────────────
-        const draw = (t: number) => {
-            ctx.save()
-            ctx.scale(dpr, dpr)
+        // ─── Spawn a swirl spot ───────────────────────────────────────────────
+        const spawnSpot = () => {
+            const now = performance.now()
+            const minR = Math.min(w, h) * (isMobile ? 0.14 : 0.19)
+            const maxR = Math.min(w, h) * (isMobile ? 0.28 : 0.40)
+            // orbit radii — large enough to make the swirl visible
+            const baseOrbit = Math.min(w, h) * (isMobile ? 0.07 : 0.11)
+            spots.push({
+                pivotX:    0.08 + Math.random() * 0.84,
+                pivotY:    0.08 + Math.random() * 0.84,
+                angle:     Math.random() * Math.PI * 2,
+                orbitRX:   baseOrbit * (0.5 + Math.random() * 1.0),
+                orbitRY:   baseOrbit * (0.3 + Math.random() * 0.8),
+                tiltAngle: Math.random() * Math.PI,
+                // random direction (sign) + speed in range ~0.22–0.45 °/frame @60fps
+                angV:      (0.00022 + Math.random() * 0.00028) * (Math.random() < 0.5 ? 1 : -1),
+                revealR:   minR + Math.random() * (maxR - minR),
+                alpha:     0.44 + Math.random() * 0.38,
+                birth:     now,
+                life:      8500 + Math.random() * 6000,
+                nextTurn:  now + 2200 + Math.random() * 2800,
+            })
+        }
 
-            // background
-            ctx.fillStyle = '#f7f5f2'
-            ctx.fillRect(0, 0, w, h)
+        const spotInterval = setInterval(spawnSpot, isMobile ? 1900 : 1050)
+        for (let i = 0; i < (isMobile ? 2 : 5); i++) spawnSpot()
 
-            // ── sculpture image ──────────────────────────────────────────────
+        // ─── Draw hero image layer ───────────────────────────────────────────
+        const drawImage = (mx: number, my: number) => {
+            imgCtx.save()
+            imgCtx.scale(dpr, dpr)
+            imgCtx.clearRect(0, 0, w, h)
+
             if (img.complete && img.naturalWidth) {
-                const mx = smoothRef.current.x
-                const my = smoothRef.current.y
-
-                // cover-fit
                 const iR = img.naturalWidth / img.naturalHeight
                 const cR = w / h
                 let iW, iH, iX, iY
-                if (cR > iR) {
-                    iW = w; iH = w / iR; iX = 0; iY = (h - iH) / 2
-                } else {
-                    iH = h; iW = h * iR; iX = (w - iW) / 2; iY = 0
-                }
+                if (cR > iR) { iW = w;  iH = w / iR; iX = 0;          iY = (h - iH) / 2 }
+                else          { iH = h;  iW = h * iR; iX = (w - iW) / 2; iY = 0 }
 
-                // subtle parallax shift
-                const parallax = 12
-                const px = (mx - 0.5) * -parallax
-                const py = (my - 0.5) * -parallax
+                const parallax = isMobile ? 0 : 10
+                imgCtx.filter = 'saturate(0.75) brightness(1.05)'
+                imgCtx.drawImage(img, iX + (mx - 0.5) * -parallax, iY + (my - 0.5) * -parallax, iW, iH)
+                imgCtx.filter = 'none'
 
-                ctx.save()
-                ctx.globalAlpha = 0.55          // soft, not harsh
-                ctx.filter = 'saturate(0.6) brightness(1.08)'
-                ctx.drawImage(img, iX + px, iY + py, iW, iH)
-                ctx.restore()
-
-                // ── directional light layer ──────────────────────────────────
-                // Simulates a single soft light source tracking the cursor, 
-                // casting the shadow/highlight of the sculpture in real-time.
-                const lightX = mx * w
-                const lightY = my * h
-                const maxR = Math.hypot(w, h) * 0.85
-
-                // Shadow side (opposite of light)
-                const shadowGrad = ctx.createRadialGradient(
-                    lightX, lightY, 0,
-                    lightX, lightY, maxR
-                )
-                shadowGrad.addColorStop(0, 'rgba(247,245,242, 0)')
-                shadowGrad.addColorStop(0.4, 'rgba(210,204,196, 0.08)')
-                shadowGrad.addColorStop(1, 'rgba(150,140,128, 0.28)')
-                ctx.fillStyle = shadowGrad
-                ctx.fillRect(0, 0, w, h)
-
-                // Highlight (on light side)
-                const hlGrad = ctx.createRadialGradient(
-                    lightX, lightY, 0,
-                    lightX, lightY, maxR * 0.55
-                )
-                hlGrad.addColorStop(0, 'rgba(255,253,249, 0.55)')
-                hlGrad.addColorStop(0.35, 'rgba(255,253,249, 0.18)')
-                hlGrad.addColorStop(1, 'rgba(247,245,242, 0)')
-                ctx.fillStyle = hlGrad
-                ctx.fillRect(0, 0, w, h)
-
-                // Subtle vignette always-on
-                const vigGrad = ctx.createRadialGradient(
-                    w / 2, h / 2, h * 0.3,
-                    w / 2, h / 2, h * 0.9
-                )
-                vigGrad.addColorStop(0, 'rgba(247,245,242, 0)')
-                vigGrad.addColorStop(1, 'rgba(220,215,208, 0.38)')
-                ctx.fillStyle = vigGrad
-                ctx.fillRect(0, 0, w, h)
+                // soft vignette
+                const vig = imgCtx.createRadialGradient(w / 2, h / 2, h * 0.20, w / 2, h / 2, h * 0.92)
+                vig.addColorStop(0, 'rgba(0,0,0,0)')
+                vig.addColorStop(1, 'rgba(4,3,2,0.48)')
+                imgCtx.fillStyle = vig
+                imgCtx.fillRect(0, 0, w, h)
             } else {
-                // fallback while loading
-                ctx.fillStyle = '#f0ede8'
-                ctx.fillRect(0, 0, w, h)
+                imgCtx.fillStyle = '#18161400'
+                imgCtx.fillRect(0, 0, w, h)
+            }
+            imgCtx.restore()
+        }
+
+        // ─── Draw overlay (white sheet + swirl holes + cursor reveal) ─────────
+        // IMPORTANT: we always use fillRect (never arc/ellipse fill) so there is
+        // NO clipping boundary — the gradient falls to 0 naturally and the edge
+        // is invisible. This removes all harsh circular lines.
+        const drawOverlay = (now: number, rp: number) => {
+            overlayCtx.save()
+            overlayCtx.scale(dpr, dpr)
+
+            // --- white base ---
+            overlayCtx.globalCompositeOperation = 'source-over'
+            overlayCtx.fillStyle = 'rgba(248,246,243,1)'
+            overlayCtx.fillRect(0, 0, w, h)
+
+            // --- erase mode: punch transparent holes ---
+            overlayCtx.globalCompositeOperation = 'destination-out'
+
+            // ── SWIRL SPOTS ─────────────────────────────────────────────────
+            for (let i = spots.length - 1; i >= 0; i--) {
+                const s = spots[i]
+                const age = now - s.birth
+                if (age >= s.life) { spots.splice(i, 1); continue }
+
+                // life envelope: ease-in 18%, hold, ease-out 28%
+                const tLife = age / s.life
+                let lifeEase: number
+                if      (tLife < 0.18) lifeEase = tLife / 0.18
+                else if (tLife < 0.72) lifeEase = 1
+                else                   lifeEase = 1 - (tLife - 0.72) / 0.28
+                lifeEase = lifeEase * lifeEase * (3 - 2 * lifeEase)
+
+                const peak = s.alpha * lifeEase * rp
+                if (peak < 0.008) continue
+
+                // compute position on the swirl orbit (tilted ellipse)
+                const cosT = Math.cos(s.tiltAngle)
+                const sinT = Math.sin(s.tiltAngle)
+                const ex   = Math.cos(s.angle) * s.orbitRX
+                const ey   = Math.sin(s.angle) * s.orbitRY
+                const cx   = s.pivotX * w + (ex * cosT - ey * sinT)
+                const cy   = s.pivotY * h + (ex * sinT + ey * cosT)
+
+                const r = s.revealR
+
+                // SOFT gradient (NO arc clip — fillRect lets gradient edge = 0)
+                const g = overlayCtx.createRadialGradient(cx, cy, 0, cx, cy, r)
+                g.addColorStop(0,    `rgba(0,0,0,${peak})`)
+                g.addColorStop(0.30, `rgba(0,0,0,${peak * 0.80})`)
+                g.addColorStop(0.55, `rgba(0,0,0,${peak * 0.42})`)
+                g.addColorStop(0.75, `rgba(0,0,0,${peak * 0.14})`)
+                g.addColorStop(0.90, `rgba(0,0,0,${peak * 0.03})`)
+                g.addColorStop(1,    'rgba(0,0,0,0)')
+                overlayCtx.fillStyle = g
+                overlayCtx.fillRect(cx - r, cy - r, r * 2, r * 2)   // ← NO hard edge
             }
 
-            // ── floating motes ──────────────────────────────────────────────
-            motesRef.current.forEach(m => {
-                const breathe = Math.sin(t / 4200 + m.phase) * 0.4
-                ctx.beginPath()
-                ctx.arc(m.x, m.y, m.r + breathe * 0.3, 0, Math.PI * 2)
-                ctx.fillStyle = `rgba(180,170,158,${m.alpha + breathe * 0.03})`
-                ctx.fill()
+            // ── CURSOR REVEAL (soft base — also fillRect, no arc clip) ───────
+            const mx = smoothRef.current.x
+            const my = smoothRef.current.y
+            if (!isMobile && mx >= 0 && my >= 0) {
+                const cx   = mx * w
+                const cy   = my * h
+                const gR   = Math.min(w, h) * 0.21
 
-                m.x += m.vx + Math.sin(t / 8000 + m.phase) * 0.08
-                m.y += m.vy
-                m.alpha += Math.sin(t / 3500 + m.phase) * 0.001
+                // base soft reveal
+                overlayCtx.globalCompositeOperation = 'destination-out'
+                const cg = overlayCtx.createRadialGradient(cx, cy, 0, cx, cy, gR)
+                cg.addColorStop(0,    `rgba(0,0,0,${0.88 * rp})`)
+                cg.addColorStop(0.28, `rgba(0,0,0,${0.72 * rp})`)
+                cg.addColorStop(0.56, `rgba(0,0,0,${0.30 * rp})`)
+                cg.addColorStop(0.80, `rgba(0,0,0,${0.07 * rp})`)
+                cg.addColorStop(1,    'rgba(0,0,0,0)')
+                overlayCtx.fillStyle = cg
+                overlayCtx.fillRect(cx - gR, cy - gR, gR * 2, gR * 2)   // ← fillRect, no clip
 
-                if (m.y < -4) m.y = h + 4
-                if (m.x < -4) m.x = w + 4
-                if (m.x > w + 4) m.x = -4
-            })
 
+            }
+
+            overlayCtx.restore()
+        }
+
+        // ─── Main rAF loop ───────────────────────────────────────────────────
+        const draw = (now: number) => {
+            const dt = Math.min(now - lastFrameTime, 50)   // cap at 50 ms (tab unfocus)
+            lastFrameTime = now
+
+            // Global reveal ramp: 0 → 1 over 2.5 s, smoothstep
+            const elapsed = now - startTime
+            const rawRP   = Math.min(1, elapsed / 2500)
+            const rp      = rawRP * rawRP * (3 - 2 * rawRP)
+
+            // advance each spot's orbit angle (frame-rate independent)
+            for (const s of spots) {
+                s.angle += s.angV * dt
+                // smooth direction / speed change every 2–5 s
+                if (now >= s.nextTurn) {
+                    // small random perturbation — keep same general direction half the time
+                    const flip  = Math.random() < 0.45 ? -1 : 1
+                    s.angV      = Math.abs(s.angV) * flip *
+                                  (0.7 + Math.random() * 0.6)              // ±30 % speed tweak
+                    s.angV      = Math.sign(s.angV) *
+                                  Math.max(0.00015, Math.min(0.00055, Math.abs(s.angV)))
+                    s.nextTurn  = now + 2200 + Math.random() * 2800
+                }
+            }
+
+            const mx = smoothRef.current.x >= 0 ? smoothRef.current.x : 0.5
+            const my = smoothRef.current.y >= 0 ? smoothRef.current.y : 0.5
+
+            drawImage(mx, my)
+            drawOverlay(now, rp)
+
+            ctx.save()
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(imgCanvas,   0, 0)    // hero image below
+            ctx.drawImage(overlayCanvas, 0, 0)  // white + holes on top
             ctx.restore()
+
             animId = requestAnimationFrame(draw)
         }
 
         animId = requestAnimationFrame(draw)
 
-        // mouse smoothing (separate rAF)
+        // ─── Mouse smoothing (independent rAF) ──────────────────────────────
         let smoothId: number
         const smooth = () => {
-            const lerp = 0.04
-            smoothRef.current.x += (mouseRef.current.x - smoothRef.current.x) * lerp
-            smoothRef.current.y += (mouseRef.current.y - smoothRef.current.y) * lerp
+            const lerpF = isMobile ? 0.07 : 0.052
+            const mx = mouseRef.current.x
+            const my = mouseRef.current.y
+            if (mx >= 0) {
+                smoothRef.current.x += (mx - smoothRef.current.x) * lerpF
+                smoothRef.current.y += (my - smoothRef.current.y) * lerpF
+            }
             smoothId = requestAnimationFrame(smooth)
         }
         smoothId = requestAnimationFrame(smooth)
@@ -197,6 +287,7 @@ function SculptureCanvas() {
         return () => {
             cancelAnimationFrame(animId)
             cancelAnimationFrame(smoothId)
+            clearInterval(spotInterval)
             window.removeEventListener('resize', resize)
             window.removeEventListener('mousemove', onMouseMove)
             window.removeEventListener('touchmove', onTouchMove)
@@ -231,7 +322,7 @@ export default function HomePage() {
     return (
         <div
             className="relative min-h-screen overflow-x-hidden select-none"
-            style={{ background: '#f7f5f2', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}
+            style={{ background: '#ffffff', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}
         >
             <SculptureCanvas />
 
@@ -279,7 +370,7 @@ export default function HomePage() {
                         {/* Eyebrow */}
                         <p
                             className={`text-[11px] tracking-[0.35em] uppercase mb-8 ${fade()}`}
-                            style={{ ...fadeD(200), color: '#9e9890' }}
+                            style={{ ...fadeD(200), color: '#9e9890', textShadow: '0 1px 8px rgba(255,255,255,0.7)' }}
                         >
                             Cloud Infrastructure · AI Ops ·  2026
                         </p>
@@ -293,6 +384,7 @@ export default function HomePage() {
                                 fontWeight: 200,
                                 color: '#1a1816',
                                 letterSpacing: '-0.02em',
+                                textShadow: '0 2px 16px rgba(255,255,255,0.6), 0 1px 4px rgba(255,255,255,0.4)',
                             }}
                         >
                             Innovative
@@ -313,6 +405,7 @@ export default function HomePage() {
                                 lineHeight: 1.75,
                                 letterSpacing: '0.01em',
                                 maxWidth: '34ch',
+                                textShadow: '0 1px 10px rgba(255,255,255,0.65)',
                             }}
                         >
                             Deploy with one click. Observe with clarity.
