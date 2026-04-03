@@ -36,28 +36,32 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 import { useApi } from '@/lib/api'
+import { useAuth } from '@clerk/nextjs'
 
 export function LayoutProvider({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
     const api = useApi()
+    const { isLoaded, isSignedIn } = useAuth()
 
     // Fetch notifications from backend
     const refreshNotifications = useCallback(async () => {
+        if (!isLoaded || !isSignedIn) return
         try {
             const data = await api.get<Notification[]>('/notifications')
             setNotifications(data)
         } catch {
             // Silently fail — user may not be authenticated yet
         }
-    }, [api])
+    }, [api, isLoaded, isSignedIn])
 
     // Fetch on mount + poll every 30 seconds
     useEffect(() => {
+        if (!isLoaded || !isSignedIn) return
         refreshNotifications()
         const interval = setInterval(refreshNotifications, 30000)
         return () => clearInterval(interval)
-    }, [refreshNotifications])
+    }, [refreshNotifications, isLoaded, isSignedIn])
 
     const toggleSidebar = useCallback(() => {
         setSidebarCollapsed((prev) => !prev)

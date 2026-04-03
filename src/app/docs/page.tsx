@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { useAuth } from '@clerk/nextjs'
 import {
     Zap,
     GitBranch,
@@ -156,6 +157,7 @@ export default function DocsPage() {
     const [activeId, setActiveId] = useState('overview')
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const observerRef = useRef<IntersectionObserver | null>(null)
+    const { isLoaded, isSignedIn } = useAuth()
 
     // Scroll-spy via IntersectionObserver
     useEffect(() => {
@@ -202,13 +204,15 @@ export default function DocsPage() {
                     {/* Right controls */}
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
-                        <Link
-                            href="/dashboard"
-                            className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-                        >
-                            Dashboard
-                            <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        {isLoaded && isSignedIn && (
+                            <Link
+                                href="/dashboard"
+                                className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                            >
+                                Dashboard
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                        )}
                         {/* Mobile sidebar toggle */}
                         <button
                             className="md:hidden p-2 rounded-md hover:bg-muted transition-colors"
