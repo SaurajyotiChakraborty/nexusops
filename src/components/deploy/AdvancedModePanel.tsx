@@ -46,10 +46,18 @@ const DiffEditor = dynamic(
     }
 )
 
-interface EnvVar {
+export interface EnvVar {
     id: string
     key: string
     value: string
+}
+
+export interface AdvancedConfig {
+    yamlConfig: string;
+    cpu: string;
+    memory: string;
+    replicas: string;
+    envVars: EnvVar[];
 }
 
 const DEFAULT_YAML = `# Deployment Configuration
@@ -116,41 +124,52 @@ spec:
               memory: "256Mi"
 `
 
-export function AdvancedModePanel() {
-    // YAML editor state
-    const [yamlConfig, setYamlConfig] = useState(DEFAULT_YAML)
-
-    // Resource controls state
-    const [cpu, setCpu] = useState('500')
-    const [memory, setMemory] = useState('512')
-    const [replicas, setReplicas] = useState('1')
-
-    // Environment variables state
-    const [envVars, setEnvVars] = useState<EnvVar[]>([
+export const DEFAULT_ADVANCED_CONFIG: AdvancedConfig = {
+    yamlConfig: DEFAULT_YAML,
+    cpu: '500',
+    memory: '512',
+    replicas: '1',
+    envVars: [
         { id: '1', key: 'NODE_ENV', value: 'production' },
         { id: '2', key: 'PORT', value: '3000' },
-    ])
+    ],
+}
+
+interface AdvancedModePanelProps {
+    config: AdvancedConfig;
+    onChange: (config: AdvancedConfig) => void;
+}
+
+export function AdvancedModePanel({ config, onChange }: AdvancedModePanelProps) {
+    const setYamlConfig = (val: string) => onChange({ ...config, yamlConfig: val })
+    const setCpu = (val: string) => onChange({ ...config, cpu: val })
+    const setMemory = (val: string) => onChange({ ...config, memory: val })
+    const setReplicas = (val: string) => onChange({ ...config, replicas: val })
 
     const addEnvVar = useCallback(() => {
-        setEnvVars((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), key: '', value: '' },
-        ])
-    }, [])
+        onChange({
+            ...config,
+            envVars: [...config.envVars, { id: crypto.randomUUID(), key: '', value: '' }],
+        })
+    }, [config, onChange])
 
     const removeEnvVar = useCallback((id: string) => {
-        setEnvVars((prev) => prev.filter((v) => v.id !== id))
-    }, [])
+        onChange({
+            ...config,
+            envVars: config.envVars.filter((v) => v.id !== id),
+        })
+    }, [config, onChange])
 
     const updateEnvVar = useCallback(
         (id: string, field: 'key' | 'value', val: string) => {
-            setEnvVars((prev) =>
-                prev.map((v) =>
+            onChange({
+                ...config,
+                envVars: config.envVars.map((v) =>
                     v.id === id ? { ...v, [field]: val } : v
-                )
-            )
+                ),
+            })
         },
-        []
+        [config, onChange]
     )
 
     return (
@@ -181,7 +200,7 @@ export function AdvancedModePanel() {
                             height="450px"
                             language="yaml"
                             theme="vs-dark"
-                            value={yamlConfig}
+                            value={config.yamlConfig}
                             onChange={(val) => setYamlConfig(val ?? '')}
                             options={{
                                 minimap: { enabled: false },
@@ -222,7 +241,7 @@ export function AdvancedModePanel() {
                             <Input
                                 id="cpu"
                                 type="number"
-                                value={cpu}
+                                value={config.cpu}
                                 onChange={(e) => setCpu(e.target.value)}
                                 min={50}
                                 max={4000}
@@ -245,7 +264,7 @@ export function AdvancedModePanel() {
                             <Input
                                 id="memory"
                                 type="number"
-                                value={memory}
+                                value={config.memory}
                                 onChange={(e) => setMemory(e.target.value)}
                                 min={64}
                                 max={8192}
@@ -268,7 +287,7 @@ export function AdvancedModePanel() {
                             <Input
                                 id="replicas"
                                 type="number"
-                                value={replicas}
+                                value={config.replicas}
                                 onChange={(e) => setReplicas(e.target.value)}
                                 min={1}
                                 max={10}
@@ -308,7 +327,7 @@ export function AdvancedModePanel() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {envVars.length === 0 ? (
+                    {config.envVars.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-6">
                             No environment variables defined. Click "Add
                             Variable" to get started.
@@ -326,7 +345,7 @@ export function AdvancedModePanel() {
                                 <span />
                             </div>
                             {/* Rows */}
-                            {envVars.map((envVar) => (
+                            {config.envVars.map((envVar) => (
                                 <div
                                     key={envVar.id}
                                     className="grid grid-cols-[1fr_1fr_40px] gap-2 items-center"
@@ -391,7 +410,7 @@ export function AdvancedModePanel() {
                             language="yaml"
                             theme="vs-dark"
                             original={PREVIOUS_YAML}
-                            modified={yamlConfig}
+                            modified={config.yamlConfig}
                             options={{
                                 readOnly: true,
                                 renderSideBySide: true,

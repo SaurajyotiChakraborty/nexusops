@@ -51,7 +51,7 @@ const NAV = [
     {
         group: 'AI Ops',
         items: [
-            { label: 'Recommendations', id: 'ai-recommendations' },
+            { label: 'Security & AI Recommendations', id: 'ai-recommendations' },
             { label: 'Notification Settings', id: 'notifications' },
         ],
     },
@@ -390,7 +390,7 @@ export default function DocsPage() {
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">1.</span> Navigate to <strong>Deploy</strong> in the sidebar.</li>
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">2.</span> Choose <strong>GitHub</strong>, <strong>Bitbucket</strong>, or paste a <strong>Manual Git URL</strong>.</li>
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">3.</span> Select a repository from the list.</li>
-                            <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">4.</span> NexusOps auto-detects the framework (Next.js, React, Node, etc.) and branch.</li>
+                            <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">4.</span> NexusOps auto-detects the framework and default branch in parallel.</li>
                         </ol>
                         <CodeBlock lang="example manual url">
 {`https://github.com/your-org/your-repo.git`}
@@ -407,20 +407,23 @@ export default function DocsPage() {
                         <p className="mb-4">After importing, review the auto-detected configuration. Most projects require zero changes.</p>
                         <div className="space-y-3">
                             <div>
-                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1">Framework</p>
-                                <p>Automatically detected from <Code>package.json</Code> or project structure. Override if needed.</p>
+                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-ai-accent" />
+                                    AI Framework Detection
+                                </p>
+                                <p>Automatically detected from <Code>package.json</Code> or project structure. It presents the detected framework with an AI confidence score and lists found dependencies. You can override it if needed.</p>
                             </div>
                             <div>
-                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1">Build Command</p>
-                                <CodeBlock>{`npm run build`}</CodeBlock>
+                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1">Project Name</p>
+                                <p>Customize the name of your project. This will be used in the dashboard and to generate your deployment URLs.</p>
                             </div>
                             <div>
-                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1">Environment Variables</p>
-                                <p>Add key-value pairs for your app's runtime secrets. These are injected at build time and kept encrypted.</p>
+                                <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-1">Advanced Configuration</p>
+                                <p>Toggle <strong>Advanced Mode</strong> to customize your deployment further. This includes editing the raw Kubernetes YAML, adjusting CPU/Memory limits, and defining environment variables.</p>
                             </div>
                         </div>
-                        <Note type="warning">
-                            Never commit <Code>.env</Code> files with secrets to your repository. Use NexusOps environment variables instead.
+                        <Note>
+                            NexusOps automatically handles the build process for you based on the detected framework, so you don't need to specify a build command manually!
                         </Note>
                     </Section>
 
@@ -432,6 +435,7 @@ export default function DocsPage() {
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">2.</span> Watch real-time build logs stream in the terminal panel.</li>
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">3.</span> NexusOps builds a Docker image and starts a container.</li>
                             <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">4.</span> On success, a unique <Code>http://&lt;host&gt;:&lt;port&gt;</Code> URL is generated.</li>
+                            <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">5.</span> On failure, the <strong>AI Deployment Failure Handler</strong> allows you to chat with the AI assistant to analyze the logs and suggest fixes.</li>
                         </ol>
                         <p>Deployment typically completes in <strong>under 60 seconds</strong> for most Node.js projects.</p>
                     </Section>
@@ -455,17 +459,16 @@ export default function DocsPage() {
                     </div>
 
                     {/* ── AI RECOMMENDATIONS ────────────────────────────────── */}
-                    <Section id="ai-recommendations" title="Recommendations"
-                        subtitle="After each deployment, the AI Ops engine automatically analyses the running container and generates a recommendation."
+                    <Section id="ai-recommendations" title="Security & AI Recommendations"
+                        subtitle="The AI Ops dashboard provides a split-pane view for parallel processing of security scanning and AI-powered infrastructure insights."
                     >
-                        <p className="mb-3">Navigate to <strong>AI Ops</strong> in the sidebar to review all active recommendations. Each recommendation includes:</p>
+                        <p className="mb-3">Navigate to <strong>AI Ops</strong> in the sidebar and click <strong>Run Scan</strong> to initiate a real-time, non-blocking scan. The dashboard provides:</p>
                         <ul className="space-y-2 mb-4">
-                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Type</strong> — e.g., <Code>COST_OPTIMIZATION</Code>, <Code>PERFORMANCE</Code></li>
-                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Risk Level</strong> — <Code>LOW</Code>, <Code>MEDIUM</Code>, or <Code>HIGH</Code></li>
-                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Confidence Score</strong> — a 0–1 probability the recommendation will improve performance</li>
-                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Suggested Action</strong> — a precise instruction to apply the fix</li>
+                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Live Security Insights:</strong> Instantly streams rule-based infrastructure analysis (e.g., JWT vulnerabilities, exposed ports, stale containers).</li>
+                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Background AI Enhancements:</strong> Generates actionable cost-optimization and performance recommendations in parallel without blocking the UI.</li>
+                            <li className="flex gap-2"><ChevronRight className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> <strong>Severity Tracking:</strong> Visual indicators for <Code>Critical</Code>, <Code>High</Code>, <Code>Medium</Code> issues and AI <Code>Insights</Code>.</li>
                         </ul>
-                        <p className="mb-3">Example AI output for a newly deployed service:</p>
+                        <p className="mb-3">Example AI recommendation output for a scanned container:</p>
                         <CodeBlock lang="ai recommendation">
 {`Title:            Right-size container resources
 Type:             COST_OPTIMIZATION

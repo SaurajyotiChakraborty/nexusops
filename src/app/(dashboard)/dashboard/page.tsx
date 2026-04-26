@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +37,7 @@ interface Deployment {
 
 export default function DashboardPage() {
     const { isLoaded, isSignedIn } = useAuth()
+    const router = useRouter()
     const api = useApi()
     const [stats, setStats] = useState<Stats | null>(null)
     const [recentDeployments, setRecentDeployments] = useState<Deployment[]>([])
@@ -59,6 +61,11 @@ export default function DashboardPage() {
                 setRecentDeployments(deploymentsData)
             } catch (error: any) {
                 console.error('Failed to load dashboard data:', error)
+                const msg = String(error?.message || '')
+                if (msg.includes('Not authenticated') || msg.includes('Failed to validate user') || msg.includes('(401)')) {
+                    router.push('/sign-in')
+                    return
+                }
                 // IMPORTANT: Only clear data if it's the VERY FIRST load
                 // If we already have data (from polling), keep it to avoid UI flicker
                 if (!stats || recentDeployments.length === 0) {
@@ -82,7 +89,7 @@ export default function DashboardPage() {
             const interval = setInterval(loadData, 30000)
             return () => clearInterval(interval)
         }
-    }, [isLoaded, isSignedIn, api])
+    }, [isLoaded, isSignedIn, api, router])
 
     if (!isLoaded || loading) {
         return (

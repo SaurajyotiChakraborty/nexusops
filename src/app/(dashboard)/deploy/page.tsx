@@ -25,9 +25,10 @@ import {
     Link as LinkIcon,
     Check,
     AlertCircle,
-    Loader2
+    Loader2,
+    Sparkles
 } from 'lucide-react'
-import { AdvancedModePanel } from '@/components/deploy/AdvancedModePanel'
+import { AdvancedModePanel, AdvancedConfig, DEFAULT_ADVANCED_CONFIG } from '@/components/deploy/AdvancedModePanel'
 import { useModeStore } from '@/stores/useModeStore'
 
 interface Repo {
@@ -62,15 +63,31 @@ export default function DeployPage() {
     const [repoError, setRepoError] = useState<string | null>(null)
     const [branch, setBranch] = useState('main')
     const [isDetectingBranch, setIsDetectingBranch] = useState(false)
+    const [isDetectingFramework, setIsDetectingFramework] = useState(false)
+    const [detectedFramework, setDetectedFramework] = useState<{
+        framework: string
+        confidence: number
+        detectedDependencies: string[]
+        source: string
+    } | null>(null)
 
     const [projectDetails, setProjectDetails] = useState({
         name: '',
-        framework: 'NEXTJS',
-        buildCommand: 'npm run build',
-        installCommand: 'npm install',
-        outputDirectory: '.next'
+        framework: 'AUTO',
+        outputDirectory: ''
     })
     const [deployLogs, setDeployLogs] = useState<string[]>([])
+    const [advancedConfig, setAdvancedConfig] = useState<AdvancedConfig>(DEFAULT_ADVANCED_CONFIG)
+
+    const frameworkLabels: Record<string, string> = {
+        NEXTJS: 'Next.js',
+        REACT: 'React (Vite)',
+        VUE: 'Vue',
+        NODE: 'Node.js (Express/Fastify/Nest)',
+        STATIC: 'Static Site (HTML/CSS/JS)',
+        PHP: 'PHP',
+        AUTO: 'Auto-detect',
+    }
 
     // Check connection status on mount
     useEffect(() => {
@@ -160,6 +177,27 @@ export default function DeployPage() {
         }
     }
 
+    const detectFramework = async (repoUrl: string, branchName: string) => {
+        setIsDetectingFramework(true)
+        setDetectedFramework(null)
+        try {
+            const result = await api.post<{
+                framework: string
+                confidence: number
+                detectedDependencies: string[]
+                source: string
+            }>('/projects/detect-framework', { repoUrl, branch: branchName })
+            setDetectedFramework(result)
+            if (result.framework !== 'AUTO' && result.confidence > 0.5) {
+                setProjectDetails(prev => ({ ...prev, framework: result.framework }))
+            }
+        } catch {
+            // Silently fall back to AUTO
+        } finally {
+            setIsDetectingFramework(false)
+        }
+    }
+
     const handleRepoSelect = async (repo: Repo) => {
         setSelectedRepo(repo)
         setProjectDetails(prev => ({
@@ -167,8 +205,10 @@ export default function DeployPage() {
             name: repo.name
         }))
 
-        // Auto-detect branch
+        // Auto-detect branch, then detect framework in parallel
         await detectBranch(repo.clone_url)
+        // Fire framework detection in background (uses detected branch)
+        detectFramework(repo.clone_url, branch || repo.default_branch || 'main')
     }
 
     const detectBranch = async (repoUrl: string) => {
@@ -200,6 +240,8 @@ export default function DeployPage() {
             name: manualUrl.split('/').pop()?.replace('.git', '') || 'my-project'
         }))
         setStep('configure')
+        // Fire framework detection for manual repos too
+        detectFramework(manualUrl, branch || 'main')
     }
 
     const handleDeploy = async () => {
@@ -209,12 +251,20 @@ export default function DeployPage() {
         try {
             setDeployLogs((prev) => [...prev, 'Creating project...'])
 
+            const envVarsObj: Record<string, string> = {}
+            advancedConfig.envVars.forEach((v) => {
+                if (v.key && v.value) envVarsObj[v.key] = v.value
+            })
+
             const project = await api.post<any>('/projects', {
                 name: projectDetails.name,
                 repositoryUrl: selectedRepo?.clone_url,
                 framework: projectDetails.framework,
-                buildCommand: projectDetails.buildCommand,
-                installCommand: projectDetails.installCommand,
+                cpuLimit: advancedConfig.cpu,
+                memoryLimit: advancedConfig.memory,
+                replicas: parseInt(advancedConfig.replicas, 10) || 1,
+                yamlConfig: advancedConfig.yamlConfig,
+                environmentVariables: envVarsObj,
             })
 
             setDeployLogs((prev) => [...prev, 'Project created successfully!', 'Initiating build...'])
@@ -398,33 +448,64 @@ export default function DeployPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium mb-2 block">Framework</label>
-                                    <Input
+                                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                                        Framework
+                                        {isDetectingFramework && (
+                                            <span className="inline-flex items-center gap-1 text-xs text-ai-accent font-normal">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                AI detecting...
+                                            </span>
+                                        )}
+                                        {detectedFramework && detectedFramework.confidence > 0.5 && !isDetectingFramework && (
+                                            <Badge variant="outline" className="text-[10px] bg-ai-accent/10 text-ai-accent border-ai-accent/30 gap-1 font-normal">
+                                                <Sparkles className="w-3 h-3" />
+                                                AI Detected — {Math.round(detectedFramework.confidence * 100)}% confident
+                                            </Badge>
+                                        )}
+                                    </label>
+                                    <select
                                         value={projectDetails.framework}
-                                        onChange={(e) => setProjectDetails({ ...projectDetails, framework: e.target.value })}
-                                    />
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div>
-                                        <label className="text-sm font-medium mb-2 block">Build Command</label>
-                                        <Input
-                                            value={projectDetails.buildCommand}
-                                            onChange={(e) => setProjectDetails({ ...projectDetails, buildCommand: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium mb-2 block">Install Command</label>
-                                        <Input
-                                            value={projectDetails.installCommand}
-                                            onChange={(e) => setProjectDetails({ ...projectDetails, installCommand: e.target.value })}
-                                        />
-                                    </div>
+                                        onChange={(e) => {
+                                            setProjectDetails({ ...projectDetails, framework: e.target.value })
+                                        }}
+                                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all"
+                                    >
+                                        <option value="AUTO">🔍 Auto-detect (recommended)</option>
+                                        <option value="NEXTJS">Next.js</option>
+                                        <option value="REACT">React (Vite)</option>
+                                        <option value="VUE">Vue</option>
+                                        <option value="NODE">Node.js (Express/Fastify/Nest)</option>
+                                        <option value="STATIC">Static Site (HTML/CSS/JS)</option>
+                                        <option value="PHP">PHP</option>
+                                    </select>
+                                    {detectedFramework && detectedFramework.confidence > 0.5 && !isDetectingFramework ? (
+                                        <div className="mt-2 p-2.5 rounded-lg bg-ai-accent/5 border border-ai-accent/20 text-xs space-y-1">
+                                            <div className="flex items-center gap-1.5 text-ai-accent font-medium">
+                                                <Sparkles className="w-3.5 h-3.5" />
+                                                AI detected: <strong>{frameworkLabels[detectedFramework.framework] || detectedFramework.framework}</strong>
+                                            </div>
+                                            {detectedFramework.detectedDependencies.length > 0 && (
+                                                <p className="text-muted-foreground">
+                                                    Found dependencies: {detectedFramework.detectedDependencies.map(d => (
+                                                        <code key={d} className="mx-0.5 px-1 py-0.5 bg-muted rounded text-[10px]">{d}</code>
+                                                    ))}
+                                                </p>
+                                            )}
+                                            <p className="text-muted-foreground/70">
+                                                You can override this selection if needed.
+                                            </p>
+                                        </div>
+                                    ) : !isDetectingFramework ? (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Auto-detect scans your repo and picks the right build template
+                                        </p>
+                                    ) : null}
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Advanced Mode Panel — shown in configure step before deploy */}
-                        {mode === 'advanced' && <AdvancedModePanel />}
+                        {mode === 'advanced' && <AdvancedModePanel config={advancedConfig} onChange={setAdvancedConfig} />}
 
                         <div className="flex gap-4">
                             <Button variant="outline" onClick={() => setStep('repo')}>Back</Button>

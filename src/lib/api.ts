@@ -23,19 +23,18 @@ export function useApi() {
                 ...(options.headers as Record<string, string>),
             })
 
-            // Strategy: Always try Clerk first (returns a fresh or cached-but-valid token),
-            // then fall back to localStorage if Clerk SDK isn't ready yet.
+            // Strategy: Always try Clerk first (returns a fresh or cached-but-valid token).
             let token: string | null = null
 
             try {
                 token = await getToken()
             } catch {
-                // Clerk SDK not ready yet, ignore
+                // Clerk can fail (offline, blocked, not ready). We'll fall back to localStorage.
             }
 
-            // Fallback to localStorage if Clerk returned nothing
-            if (!token) {
-                token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+            // Fallback: last known token from localStorage (TokenSyncer keeps it fresh)
+            if (!token && typeof window !== 'undefined') {
+                token = localStorage.getItem(TOKEN_KEY)
             }
 
             if (!token) {
@@ -47,10 +46,17 @@ export function useApi() {
                 localStorage.setItem(TOKEN_KEY, token)
             }
 
-            let response = await fetch(`${API_URL}${endpoint}`, {
-                ...options,
-                headers: getHeaders(token),
-            })
+            let response: Response
+            try {
+                response = await fetch(`${API_URL}${endpoint}`, {
+                    ...options,
+                    headers: getHeaders(token),
+                })
+            } catch (err: any) {
+                // Network failure (e.g. Clerk token endpoint / API offline)
+                const msg = err?.name === 'AbortError' ? 'Request aborted' : 'Network error'
+                throw new Error(msg)
+            }
 
             // If 401 Unauthorized, force a completely fresh token from Clerk (skip internal cache).
             if (response.status === 401) {

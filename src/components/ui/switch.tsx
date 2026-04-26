@@ -15,6 +15,7 @@ const Switch = React.forwardRef<
         )}
         {...props}
         ref={ref}
+        suppressHydrationWarning
     >
         <SwitchPrimitive.Thumb
             className={cn(

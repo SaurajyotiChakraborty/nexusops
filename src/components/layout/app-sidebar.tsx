@@ -117,6 +117,7 @@ export function AppSidebar() {
                             "p-2 hover:bg-sidebar-accent rounded-lg text-muted-foreground transition-colors shrink-0",
                         )}
                         title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                        suppressHydrationWarning
                     >
                         <Menu className="w-5 h-5" />
                     </button>
@@ -168,6 +169,7 @@ export function AppSidebar() {
                         <button
                             onClick={handleLogout}
                             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full"
+                            suppressHydrationWarning
                         >
                             <LogOut className="w-4 h-4" />
                             <span>Sign Out</span>
@@ -178,6 +180,7 @@ export function AppSidebar() {
                         onClick={handleLogout}
                         title="Sign Out"
                         className="flex items-center justify-center p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full"
+                        suppressHydrationWarning
                     >
                         <LogOut className="w-5 h-5" />
                     </button>
